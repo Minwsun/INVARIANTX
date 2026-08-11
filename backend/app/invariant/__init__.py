@@ -14,6 +14,7 @@ from app.invariant.models import (
     IntentContract,
     Objective,
     Permission,
+    SemanticConstraint,
     ToolRisk,
 )
 from app.invariant.registry import IntentRegistry
@@ -36,6 +37,7 @@ __all__ = [
     "IntentRegistry",
     "Objective",
     "Permission",
+    "SemanticConstraint",
     "ToolRisk",
     "repair_delegation",
 ]

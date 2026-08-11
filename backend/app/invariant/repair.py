@@ -20,6 +20,8 @@ def repair_delegation(
 
     objective_refs = list(proposal.objective_refs)
     claims = {claim.constraint_id: claim for claim in proposal.constraint_claims}
+    semantic_refs = list(proposal.semantic_invariant_refs)
+    action = proposal.action
     changed_fields: list[str] = []
 
     for violation in verdict.violations:
@@ -45,11 +47,33 @@ def repair_delegation(
             claims[constraint.id] = _claim_from_constraint(constraint)
             if "constraint_claims" not in changed_fields:
                 changed_fields.append("constraint_claims")
+            continue
+
+        semantic_constraint = next(
+            (
+                item
+                for item in contract.semantic_constraints
+                if item.id == violation.reference_id
+            ),
+            None,
+        )
+        if semantic_constraint is not None:
+            if semantic_constraint.id not in semantic_refs:
+                semantic_refs.append(semantic_constraint.id)
+                if "semantic_invariant_refs" not in changed_fields:
+                    changed_fields.append("semantic_invariant_refs")
+            safeguard = f" Preserve invariant: {semantic_constraint.rule}"
+            if safeguard not in action:
+                action = f"{action.rstrip('.')}.{safeguard}"
+                if "action" not in changed_fields:
+                    changed_fields.append("action")
 
     repaired = proposal.model_copy(
         update={
             "objective_refs": tuple(objective_refs),
             "constraint_claims": tuple(claims.values()),
+            "semantic_invariant_refs": tuple(semantic_refs),
+            "action": action,
         }
     )
     return RepairResult(
@@ -68,5 +92,4 @@ def _claim_from_constraint(constraint: Constraint) -> ConstraintClaim:
         value=constraint.value,
         value_ref=constraint.value_ref,
     )
-
 

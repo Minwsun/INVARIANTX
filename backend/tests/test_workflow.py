@@ -12,6 +12,7 @@ from app.invariant.models import (
     DelegationProposal,
     ToolRisk,
 )
+from app.invariant.semantic import SemanticVerifier
 from app.runtime.workflow import (
     WorkflowRequest,
     WorkflowResult,
@@ -23,8 +24,9 @@ def workflow_request(
     *,
     planner_output: DelegationProposal | None = None,
     medical_delay: float = 10,
+    contract=None,
 ) -> WorkflowRequest:
-    contract = medical_logistics_contract()
+    contract = contract or medical_logistics_contract()
     return WorkflowRequest(
         run_id="run-001",
         contract=contract,
@@ -48,11 +50,20 @@ def workflow_request(
     )
 
 
-def run_workflow(request: WorkflowRequest) -> tuple[WorkflowResult, dict, list]:
+def run_workflow(
+    request: WorkflowRequest,
+    *,
+    semantic_verifier: SemanticVerifier | None = None,
+    max_llm_calls: int = 5,
+    max_repairs: int = 2,
+) -> tuple[WorkflowResult, dict, list]:
     async def run() -> tuple[WorkflowResult, dict, list]:
         tools = LogisticsTools()
         workflow = build_invariant_workflow(
-            {"apply_plan": (tools.apply_plan, ToolRisk.SIDE_EFFECT)}
+            {"apply_plan": (tools.apply_plan, ToolRisk.SIDE_EFFECT)},
+            semantic_verifier=semantic_verifier,
+            max_llm_calls=max_llm_calls,
+            max_repairs=max_repairs,
         )
         runner = InMemoryRunner(node=workflow, app_name="invariant_test")
         await runner.session_service.create_session(

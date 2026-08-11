@@ -35,6 +35,7 @@ class DelegationGate:
         violations = [
             *self._check_objectives(contract, proposal),
             *self._check_constraints(contract, proposal),
+            *self._check_semantic_references(contract, proposal),
         ]
         return GateVerdict(
             status=GateStatus.REPAIR if violations else GateStatus.PASS,
@@ -67,6 +68,22 @@ class DelegationGate:
             for objective_id in sorted(unknown)
         )
         return violations
+
+    def _check_semantic_references(
+        self,
+        contract: IntentContract,
+        proposal: DelegationProposal,
+    ) -> list[Violation]:
+        required = {constraint.id for constraint in contract.semantic_constraints}
+        missing = required - set(proposal.semantic_invariant_refs)
+        return [
+            Violation(
+                drift_type=DriftType.OMISSION,
+                reference_id=constraint_id,
+                evidence="semantic invariant is missing from delegation",
+            )
+            for constraint_id in sorted(missing)
+        ]
 
     def _check_constraints(
         self,
@@ -115,5 +132,4 @@ class DelegationGate:
         if constraint.operator == ConstraintOperator.GREATER_THAN_OR_EQUAL:
             return DriftType.WEAKENING if claim.value < constraint.value else None
         return None if claim.value == constraint.value else DriftType.CONTRADICTION
-
 

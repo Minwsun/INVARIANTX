@@ -16,11 +16,13 @@ from app.invariant.models import (
     DelegationProposal,
     DriftType,
     FrozenModel,
+    GateVerdict,
     GateStatus,
     IntentContract,
     Violation,
 )
 from app.invariant.repair import repair_delegation
+from app.invariant.semantic import ModelCallRecord, SemanticVerifier
 from app.invariant.tools import ToolExecutionBlocked, ToolExecutor
 
 
@@ -40,6 +42,7 @@ class WorkflowPacket(FrozenModel):
     violations: tuple[Violation, ...] = ()
     repair_count: int = 0
     llm_call_count: int = 0
+    model_calls: tuple[ModelCallRecord, ...] = ()
     tool_result: Any = None
     status: Literal["RUNNING", "BLOCKED", "COMPLETED"] = "RUNNING"
 
@@ -50,6 +53,7 @@ class WorkflowResult(FrozenModel):
     repair_count: int
     llm_call_count: int
     violations: tuple[Violation, ...]
+    model_calls: tuple[ModelCallRecord, ...]
     tool_result: Any = None
 
 
@@ -57,7 +61,13 @@ def build_invariant_workflow(
     tools: dict[str, tuple[Any, Any]],
     *,
     max_repairs: int = 2,
+    max_llm_calls: int = 5,
+    semantic_verifier: SemanticVerifier | None = None,
 ) -> Workflow:
+    if not 1 <= max_llm_calls <= 5:
+        raise ValueError("max_llm_calls must be between 1 and 5")
+    if max_repairs < 0:
+        raise ValueError("max_repairs cannot be negative")
     delegation_gate = DelegationGate()
     action_gate = ActionGate()
     executor = ToolExecutor(action_gate)
@@ -80,7 +90,7 @@ def build_invariant_workflow(
             update={"delegation": node_input.request.planner_output}
         )
 
-    def check_delegation(node_input: WorkflowPacket) -> Event:
+    async def check_delegation(ctx: Context, node_input: WorkflowPacket) -> Event:
         if node_input.delegation is None:
             return Event(
                 output=node_input.model_copy(update={"status": "BLOCKED"}),
@@ -100,6 +110,75 @@ def build_invariant_workflow(
         packet = node_input.model_copy(update={"violations": verdict.violations})
         if route == GateStatus.BLOCK:
             packet = packet.model_copy(update={"status": "BLOCKED"})
+        if route == GateStatus.PASS and node_input.request.contract.semantic_constraints:
+            if semantic_verifier is None:
+                violation = Violation(
+                    drift_type=DriftType.INSUFFICIENT_EVIDENCE,
+                    reference_id="semantic_verifier",
+                    evidence="semantic constraints require a configured verifier",
+                )
+                return Event(
+                    output=packet.model_copy(
+                        update={"status": "BLOCKED", "violations": (violation,)}
+                    ),
+                    route=GateStatus.BLOCK.value,
+                )
+            try:
+                semantic_result = await semantic_verifier.verify(
+                    node_input.delegation,
+                    node_input.request.contract.semantic_constraints,
+                    remaining_calls=max_llm_calls - node_input.llm_call_count,
+                )
+            except RuntimeError as error:
+                violation = Violation(
+                    drift_type=DriftType.INSUFFICIENT_EVIDENCE,
+                    reference_id="llm_budget",
+                    evidence=str(error),
+                )
+                return Event(
+                    output=packet.model_copy(
+                        update={"status": "BLOCKED", "violations": (violation,)}
+                    ),
+                    route=GateStatus.BLOCK.value,
+                )
+            llm_call_count = node_input.llm_call_count + len(semantic_result.calls)
+            ctx.state["llm_call_count"] = llm_call_count
+            packet = packet.model_copy(
+                update={
+                    "llm_call_count": llm_call_count,
+                    "model_calls": (*node_input.model_calls, *semantic_result.calls),
+                }
+            )
+            semantic_verdict = semantic_result.verdict
+            if semantic_verdict.uncertain:
+                violation = Violation(
+                    drift_type=DriftType.INSUFFICIENT_EVIDENCE,
+                    reference_id="semantic_verifier",
+                    evidence=semantic_verdict.evidence,
+                )
+                return Event(
+                    output=packet.model_copy(
+                        update={"status": "BLOCKED", "violations": (violation,)}
+                    ),
+                    route=GateStatus.BLOCK.value,
+                )
+            if not semantic_verdict.preserved:
+                violation_ids = semantic_verdict.violation_ids or tuple(
+                    constraint.id
+                    for constraint in node_input.request.contract.semantic_constraints
+                )
+                violations = tuple(
+                    Violation(
+                        drift_type=DriftType.CONTRADICTION,
+                        reference_id=constraint_id,
+                        evidence=semantic_verdict.evidence,
+                    )
+                    for constraint_id in violation_ids
+                )
+                return Event(
+                    output=packet.model_copy(update={"violations": violations}),
+                    route=GateStatus.REPAIR.value,
+                )
         return Event(output=packet, route=route.value)
 
     def repair_task(ctx: Context, node_input: WorkflowPacket) -> Event:
@@ -108,9 +187,13 @@ def build_invariant_workflow(
                 output=node_input.model_copy(update={"status": "BLOCKED"}),
                 route=GateStatus.BLOCK.value,
             )
-        verdict = delegation_gate.check(
-            node_input.request.contract,
-            node_input.delegation,
+        verdict = (
+            GateVerdict(status=GateStatus.REPAIR, violations=node_input.violations)
+            if node_input.violations
+            else delegation_gate.check(
+                node_input.request.contract,
+                node_input.delegation,
+            )
         )
         repair = repair_delegation(
             node_input.request.contract,
@@ -191,6 +274,7 @@ def build_invariant_workflow(
             repair_count=node_input.repair_count,
             llm_call_count=node_input.llm_call_count,
             violations=node_input.violations,
+            model_calls=node_input.model_calls,
             tool_result=node_input.tool_result,
         )
 

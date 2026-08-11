@@ -72,6 +72,12 @@ class Permission(FrozenModel):
     risk: ToolRisk
 
 
+class SemanticConstraint(FrozenModel):
+    id: str = Field(min_length=1)
+    rule: str = Field(min_length=1)
+    source_span: str = Field(min_length=1)
+
+
 class IntentContract(FrozenModel):
     schema_version: Literal["1.0"] = "1.0"
     id: str = Field(min_length=1)
@@ -83,10 +89,18 @@ class IntentContract(FrozenModel):
     protected_entities: tuple[str, ...] = ()
     forbidden_outcomes: tuple[str, ...] = ()
     permissions: tuple[Permission, ...] = ()
+    semantic_constraints: tuple[SemanticConstraint, ...] = ()
 
     @model_validator(mode="after")
     def require_unique_ids(self) -> IntentContract:
-        ids = [item.id for item in (*self.objectives, *self.hard_constraints)]
+        ids = [
+            item.id
+            for item in (
+                *self.objectives,
+                *self.hard_constraints,
+                *self.semantic_constraints,
+            )
+        ]
         if len(ids) != len(set(ids)):
             raise ValueError("objective and constraint ids must be unique")
         return self
@@ -115,6 +129,7 @@ class DelegationProposal(FrozenModel):
     action: str = Field(min_length=1)
     objective_refs: tuple[str, ...] = ()
     constraint_claims: tuple[ConstraintClaim, ...] = ()
+    semantic_invariant_refs: tuple[str, ...] = ()
 
 
 class Violation(FrozenModel):
