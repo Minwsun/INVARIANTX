@@ -79,3 +79,24 @@ def test_run_api_rejects_unsupported_demo_goal() -> None:
     response = asyncio.run(run())
 
     assert response.status_code == 422
+
+
+def test_cors_allows_local_dashboard() -> None:
+    async def run():
+        app = create_app(RunService())
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            return await client.options(
+                "/runs",
+                headers={
+                    "Origin": "http://localhost:3000",
+                    "Access-Control-Request-Method": "POST",
+                },
+            )
+
+    response = asyncio.run(run())
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
