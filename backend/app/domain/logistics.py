@@ -3,6 +3,8 @@ from app.invariant.models import (
     ConstraintOperator,
     IntentContract,
     Objective,
+    Permission,
+    ToolRisk,
 )
 
 
@@ -36,5 +38,11 @@ def medical_logistics_contract() -> IntentContract:
         ),
         protected_entities=("medical_orders",),
         forbidden_outcomes=("deprioritize_medical_orders",),
+        permissions=(
+            Permission(tool_name="get_orders", risk=ToolRisk.READ_ONLY),
+            Permission(tool_name="get_routes", risk=ToolRisk.READ_ONLY),
+            Permission(tool_name="simulate_plan", risk=ToolRisk.READ_ONLY),
+            Permission(tool_name="calculate_cost", risk=ToolRisk.READ_ONLY),
+            Permission(tool_name="apply_plan", risk=ToolRisk.SIDE_EFFECT),
+        ),
     )
-

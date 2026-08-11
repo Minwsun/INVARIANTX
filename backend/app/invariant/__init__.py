@@ -1,5 +1,9 @@
+from app.invariant.action_gate import ActionGate
 from app.invariant.gate import DelegationGate
 from app.invariant.models import (
+    ActionApproval,
+    ActionGateResult,
+    ActionProposal,
     Constraint,
     ConstraintClaim,
     ConstraintOperator,
@@ -9,11 +13,17 @@ from app.invariant.models import (
     GateVerdict,
     IntentContract,
     Objective,
+    Permission,
+    ToolRisk,
 )
 from app.invariant.registry import IntentRegistry
 from app.invariant.repair import repair_delegation
 
 __all__ = [
+    "ActionApproval",
+    "ActionGate",
+    "ActionGateResult",
+    "ActionProposal",
     "Constraint",
     "ConstraintClaim",
     "ConstraintOperator",
@@ -25,6 +35,7 @@ __all__ = [
     "IntentContract",
     "IntentRegistry",
     "Objective",
+    "Permission",
+    "ToolRisk",
     "repair_delegation",
 ]
-

@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from enum import StrEnum
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, PositiveInt, model_validator
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, PositiveInt, model_validator
 
 
 class FrozenModel(BaseModel):
@@ -23,6 +23,10 @@ class DriftType(StrEnum):
     WEAKENING = "WEAKENING"
     OBJECTIVE_SUBSTITUTION = "OBJECTIVE_SUBSTITUTION"
     STALE_CONTRACT = "STALE_CONTRACT"
+    UNAUTHORIZED_ACTION = "UNAUTHORIZED_ACTION"
+    INSUFFICIENT_EVIDENCE = "INSUFFICIENT_EVIDENCE"
+    ARGUMENT_MUTATION = "ARGUMENT_MUTATION"
+    EXPIRED_APPROVAL = "EXPIRED_APPROVAL"
 
 
 class GateStatus(StrEnum):
@@ -30,6 +34,11 @@ class GateStatus(StrEnum):
     REPAIR = "REPAIR"
     BLOCK = "BLOCK"
     ESCALATE = "ESCALATE"
+
+
+class ToolRisk(StrEnum):
+    READ_ONLY = "READ_ONLY"
+    SIDE_EFFECT = "SIDE_EFFECT"
 
 
 class Objective(FrozenModel):
@@ -58,6 +67,11 @@ class Constraint(FrozenModel):
         return self
 
 
+class Permission(FrozenModel):
+    tool_name: str = Field(min_length=1)
+    risk: ToolRisk
+
+
 class IntentContract(FrozenModel):
     schema_version: Literal["1.0"] = "1.0"
     id: str = Field(min_length=1)
@@ -68,6 +82,7 @@ class IntentContract(FrozenModel):
     hard_constraints: tuple[Constraint, ...] = ()
     protected_entities: tuple[str, ...] = ()
     forbidden_outcomes: tuple[str, ...] = ()
+    permissions: tuple[Permission, ...] = ()
 
     @model_validator(mode="after")
     def require_unique_ids(self) -> IntentContract:
@@ -113,8 +128,33 @@ class GateVerdict(FrozenModel):
     violations: tuple[Violation, ...] = ()
 
 
+class ActionProposal(FrozenModel):
+    schema_version: Literal["1.0"] = "1.0"
+    action_id: str = Field(min_length=1)
+    contract_id: str = Field(min_length=1)
+    contract_version: PositiveInt
+    tool_name: str = Field(min_length=1)
+    risk: ToolRisk
+    arguments: dict[str, JsonValue]
+    proposed_metrics: dict[str, float] = Field(default_factory=dict)
+
+
+class ActionApproval(FrozenModel):
+    approval_id: str = Field(min_length=1)
+    contract_id: str = Field(min_length=1)
+    contract_version: PositiveInt
+    tool_name: str = Field(min_length=1)
+    arguments_digest: str = Field(min_length=64, max_length=64)
+    state_digest: str = Field(min_length=64, max_length=64)
+    expires_at: datetime
+
+
+class ActionGateResult(FrozenModel):
+    verdict: GateVerdict
+    approval: ActionApproval | None = None
+
+
 class RepairResult(FrozenModel):
     original: DelegationProposal
     repaired: DelegationProposal
     changed_fields: tuple[str, ...]
-
