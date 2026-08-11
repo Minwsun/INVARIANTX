@@ -41,7 +41,7 @@ def test_run_api_and_sse_replay() -> None:
             snapshot = await wait_for_terminal(client, run_id)
             contract = await client.get(f"/runs/{run_id}/contract")
             stream = await client.get(f"/runs/{run_id}/events")
-            events = service.journal.list(run_id)
+            events = await service.journal.list(run_id)
             replay = await client.get(
                 f"/runs/{run_id}/events",
                 headers={"Last-Event-ID": events[2].event_id},

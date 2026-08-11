@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from typing import Any, Literal
 
 from google.adk import Event, Workflow
@@ -63,6 +64,7 @@ def build_invariant_workflow(
     max_repairs: int = 2,
     max_llm_calls: int = 5,
     semantic_verifier: SemanticVerifier | None = None,
+    action_decision_sink: Callable[[GateVerdict], Awaitable[None]] | None = None,
 ) -> Workflow:
     if not 1 <= max_llm_calls <= 5:
         raise ValueError("max_llm_calls must be between 1 and 5")
@@ -216,7 +218,7 @@ def build_invariant_workflow(
     def worker_agent(node_input: WorkflowPacket) -> WorkflowPacket:
         return node_input.model_copy(update={"action": node_input.request.worker_output})
 
-    def check_action(node_input: WorkflowPacket) -> Event:
+    async def check_action(node_input: WorkflowPacket) -> Event:
         if node_input.action is None:
             return Event(
                 output=node_input.model_copy(update={"status": "BLOCKED"}),
@@ -227,6 +229,8 @@ def build_invariant_workflow(
             node_input.action,
             node_input.request.state,
         )
+        if action_decision_sink is not None:
+            await action_decision_sink(result.verdict)
         packet = node_input.model_copy(
             update={
                 "approval": result.approval,

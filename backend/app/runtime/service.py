@@ -11,9 +11,17 @@ from pydantic import Field
 
 from app.domain.logistics import medical_logistics_contract
 from app.domain.logistics_tools import LogisticsTools
-from app.invariant.models import ActionProposal, DelegationProposal, FrozenModel, ToolRisk
+from app.invariant.models import (
+    ActionProposal,
+    DelegationProposal,
+    FrozenModel,
+    GateStatus,
+    IntentContract,
+    ToolRisk,
+)
 from app.runtime.events import EventJournal, EventType, RunStatus
 from app.runtime.workflow import WorkflowRequest, WorkflowResult, build_invariant_workflow
+from app.storage.memory import InMemoryStore
 
 
 class RunSnapshot(FrozenModel):
@@ -36,8 +44,9 @@ class _RunRecord:
 
 
 class RunService:
-    def __init__(self, journal: EventJournal | None = None) -> None:
-        self.journal = journal or EventJournal()
+    def __init__(self, store=None, journal: EventJournal | None = None) -> None:
+        self.store = store or InMemoryStore()
+        self.journal = journal or EventJournal(self.store)
         self._runs: dict[str, _RunRecord] = {}
 
     async def create(self, goal: str) -> RunSnapshot:
@@ -46,18 +55,35 @@ class RunService:
         snapshot = RunSnapshot(run_id=run_id, status=RunStatus.CREATED, goal=goal)
         record = _RunRecord(snapshot=snapshot, request=request)
         self._runs[run_id] = record
+        await self.store.create_contract(request.contract)
+        await self._save_snapshot(record)
         await self.journal.append(run_id, EventType.RUN_CREATED, "api")
         record.task = asyncio.create_task(self._execute(record))
         return snapshot
 
-    def get(self, run_id: str) -> RunSnapshot:
-        try:
-            return self._runs[run_id].snapshot
-        except KeyError as error:
-            raise KeyError(f"run {run_id} not found") from error
+    async def get(self, run_id: str) -> RunSnapshot:
+        record = self._runs.get(run_id)
+        if record is not None:
+            return record.snapshot
+        stored = await self.store.get_run(run_id)
+        if stored is None:
+            raise KeyError(f"run {run_id} not found")
+        return RunSnapshot.model_validate(stored)
 
-    def contract(self, run_id: str):
-        return self._record(run_id).request.contract
+    async def contract(self, run_id: str):
+        record = self._runs.get(run_id)
+        if record is not None:
+            return record.request.contract
+        snapshot = await self.get(run_id)
+        if snapshot.contract_id is None or snapshot.contract_version is None:
+            raise KeyError(f"contract for run {run_id} not found")
+        stored = await self.store.get_contract(
+            snapshot.contract_id,
+            snapshot.contract_version,
+        )
+        if stored is None:
+            raise KeyError(f"contract for run {run_id} not found")
+        return IntentContract.model_validate(stored)
 
     async def cancel(self, run_id: str) -> bool:
         record = self._record(run_id)
@@ -76,8 +102,23 @@ class RunService:
     async def _execute(self, record: _RunRecord) -> None:
         run_id = record.snapshot.run_id
         tools = LogisticsTools()
+
+        async def persist_action_decision(verdict):
+            event_type = (
+                EventType.GATE_PASSED
+                if verdict.status == GateStatus.PASS
+                else EventType.ACTION_BLOCKED
+            )
+            await self.journal.append(
+                run_id,
+                event_type,
+                "check_action",
+                {"status": verdict.status.value},
+            )
+
         workflow = build_invariant_workflow(
-            {"apply_plan": (tools.apply_plan, ToolRisk.SIDE_EFFECT)}
+            {"apply_plan": (tools.apply_plan, ToolRisk.SIDE_EFFECT)},
+            action_decision_sink=persist_action_decision,
         )
         runner = InMemoryRunner(node=workflow, app_name="invariant")
         try:
@@ -88,6 +129,7 @@ class RunService:
                     "contract_version": record.request.contract.version,
                 }
             )
+            await self._save_snapshot(record)
             await self.journal.append(run_id, EventType.RUN_STARTED, "runtime")
             await runner.session_service.create_session(
                 app_name="invariant",
@@ -121,6 +163,7 @@ class RunService:
                     "result": result.model_dump(mode="json"),
                 }
             )
+            await self._save_snapshot(record)
             await self.journal.append(
                 run_id,
                 EventType.RUN_COMPLETED,
@@ -131,11 +174,13 @@ class RunService:
             record.snapshot = record.snapshot.model_copy(
                 update={"status": RunStatus.CANCELLED}
             )
+            await self._save_snapshot(record)
             await self.journal.append(run_id, EventType.RUN_CANCELLED, "runtime")
         except Exception as error:
             record.snapshot = record.snapshot.model_copy(
                 update={"status": RunStatus.FAILED, "error": str(error)}
             )
+            await self._save_snapshot(record)
             await self.journal.append(
                 run_id,
                 EventType.RUN_FAILED,
@@ -163,12 +208,6 @@ class RunService:
                 if route == "REPAIR"
                 else EventType.GATE_PASSED
             )
-        elif node_name == "check_action":
-            event_type = (
-                EventType.ACTION_BLOCKED
-                if route == "BLOCK"
-                else EventType.GATE_PASSED
-            )
         if event_type is not None:
             await self.journal.append(
                 run_id,
@@ -182,6 +221,12 @@ class RunService:
             return self._runs[run_id]
         except KeyError as error:
             raise KeyError(f"run {run_id} not found") from error
+
+    async def _save_snapshot(self, record: _RunRecord) -> None:
+        await self.store.save_run(
+            record.snapshot.run_id,
+            record.snapshot.model_dump(mode="json"),
+        )
 
 
 def _compile_logistics_demo(goal: str, run_id: str) -> WorkflowRequest:

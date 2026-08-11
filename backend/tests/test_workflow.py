@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import Awaitable, Callable
 
 from google.adk.runners import InMemoryRunner
 from google.genai import types
@@ -10,6 +11,7 @@ from app.invariant.models import (
     ConstraintClaim,
     ConstraintOperator,
     DelegationProposal,
+    GateVerdict,
     ToolRisk,
 )
 from app.invariant.semantic import SemanticVerifier
@@ -56,6 +58,7 @@ def run_workflow(
     semantic_verifier: SemanticVerifier | None = None,
     max_llm_calls: int = 5,
     max_repairs: int = 2,
+    action_decision_sink: Callable[[GateVerdict], Awaitable[None]] | None = None,
 ) -> tuple[WorkflowResult, dict, list]:
     async def run() -> tuple[WorkflowResult, dict, list]:
         tools = LogisticsTools()
@@ -64,6 +67,7 @@ def run_workflow(
             semantic_verifier=semantic_verifier,
             max_llm_calls=max_llm_calls,
             max_repairs=max_repairs,
+            action_decision_sink=action_decision_sink,
         )
         runner = InMemoryRunner(node=workflow, app_name="invariant_test")
         await runner.session_service.create_session(
@@ -145,3 +149,18 @@ def test_adk_graph_blocks_objective_substitution_without_repair() -> None:
     assert result.repair_count == 0
     assert result.tool_result is None
     assert state["repair_count"] == 0
+
+
+def test_action_decision_persistence_failure_prevents_side_effect() -> None:
+    async def failing_sink(_verdict):
+        raise RuntimeError("event persistence unavailable")
+
+    try:
+        run_workflow(
+            workflow_request(),
+            action_decision_sink=failing_sink,
+        )
+    except RuntimeError as error:
+        assert str(error) == "event persistence unavailable"
+    else:
+        raise AssertionError("workflow executed after decision persistence failure")

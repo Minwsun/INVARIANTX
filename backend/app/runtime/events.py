@@ -55,10 +55,30 @@ class InvariantEvent(FrozenModel):
     actor: str
     payload: dict[str, Any] = Field(default_factory=dict)
 
+    @classmethod
+    def create(
+        cls,
+        *,
+        run_id: str,
+        sequence: int,
+        event_type: EventType,
+        actor: str,
+        payload: dict[str, Any],
+    ) -> InvariantEvent:
+        return cls(
+            event_id=f"{run_id}:{sequence}",
+            sequence=sequence,
+            type=event_type,
+            timestamp=datetime.now(timezone.utc),
+            run_id=run_id,
+            actor=actor,
+            payload=payload,
+        )
+
 
 class EventJournal:
-    def __init__(self) -> None:
-        self._events: dict[str, list[InvariantEvent]] = {}
+    def __init__(self, store) -> None:
+        self._store = store
         self._conditions: dict[str, asyncio.Condition] = {}
 
     async def append(
@@ -70,25 +90,21 @@ class EventJournal:
     ) -> InvariantEvent:
         condition = self._condition(run_id)
         async with condition:
-            events = self._events.setdefault(run_id, [])
-            if events and events[-1].type in TERMINAL_EVENTS:
-                raise RuntimeError(f"run {run_id} already terminated")
-            sequence = len(events) + 1
-            event = InvariantEvent(
-                event_id=f"{run_id}:{sequence}",
-                sequence=sequence,
-                type=event_type,
-                timestamp=datetime.now(timezone.utc),
-                run_id=run_id,
-                actor=actor,
-                payload=payload or {},
+            event = await self._store.append_event(
+                run_id,
+                event_type,
+                actor,
+                payload or {},
             )
-            events.append(event)
             condition.notify_all()
             return event
 
-    def list(self, run_id: str, after_event_id: str | None = None) -> list[InvariantEvent]:
-        events = self._events.get(run_id, [])
+    async def list(
+        self,
+        run_id: str,
+        after_event_id: str | None = None,
+    ) -> list[InvariantEvent]:
+        events = await self._store.list_events(run_id)
         if after_event_id is None:
             return list(events)
         sequence = next(
@@ -105,8 +121,8 @@ class EventJournal:
         after_event_id: str | None = None,
     ) -> AsyncIterator[InvariantEvent]:
         cursor = 0
+        events = await self._store.list_events(run_id)
         if after_event_id is not None:
-            events = self._events.get(run_id, [])
             cursor = next(
                 (event.sequence for event in events if event.event_id == after_event_id),
                 0,
@@ -116,7 +132,7 @@ class EventJournal:
         condition = self._condition(run_id)
         while True:
             async with condition:
-                events = self._events.get(run_id, [])
+                events = await self._store.list_events(run_id)
                 available = [event for event in events if event.sequence > cursor]
                 if not available:
                     if events and events[-1].type in TERMINAL_EVENTS:

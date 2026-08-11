@@ -1,16 +1,17 @@
 import asyncio
 
 from app.runtime.events import EventJournal, EventType
+from app.storage.memory import InMemoryStore
 
 
 def test_event_journal_sequences_and_replays_after_event_id() -> None:
     async def run():
-        journal = EventJournal()
+        journal = EventJournal(InMemoryStore())
         first = await journal.append("run-1", EventType.RUN_CREATED, "api")
         second = await journal.append("run-1", EventType.RUN_STARTED, "runtime")
         third = await journal.append("run-1", EventType.RUN_COMPLETED, "runtime")
 
-        replay = journal.list("run-1", second.event_id)
+        replay = await journal.list("run-1", second.event_id)
         streamed = [
             event
             async for event in journal.stream("run-1", first.event_id)
@@ -26,7 +27,7 @@ def test_event_journal_sequences_and_replays_after_event_id() -> None:
 
 def test_event_journal_rejects_events_after_terminal() -> None:
     async def run():
-        journal = EventJournal()
+        journal = EventJournal(InMemoryStore())
         await journal.append("run-1", EventType.RUN_COMPLETED, "runtime")
         try:
             await journal.append("run-1", EventType.TASK_PROPOSED, "planner")

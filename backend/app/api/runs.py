@@ -25,14 +25,14 @@ def create_runs_router(service: RunService) -> APIRouter:
     @router.get("/{run_id}")
     async def get_run(run_id: str):
         try:
-            return service.get(run_id)
+            return await service.get(run_id)
         except KeyError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
 
     @router.get("/{run_id}/contract")
     async def get_contract(run_id: str):
         try:
-            return service.contract(run_id)
+            return await service.contract(run_id)
         except KeyError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
 
@@ -42,9 +42,9 @@ def create_runs_router(service: RunService) -> APIRouter:
         last_event_id: str | None = Header(default=None, alias="Last-Event-ID"),
     ):
         try:
-            service.get(run_id)
+            await service.get(run_id)
             if last_event_id is not None:
-                service.journal.list(run_id, last_event_id)
+                await service.journal.list(run_id, last_event_id)
         except KeyError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
 
