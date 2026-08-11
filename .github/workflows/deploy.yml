@@ -6,7 +6,7 @@ on:
       region:
         description: Google Cloud region
         required: true
-        default: us-central1
+        default: asia-southeast1
 
 permissions:
   contents: read
@@ -35,4 +35,5 @@ jobs:
         run: >-
           ./deploy/cloudrun.ps1
           -ProjectId "${{ secrets.GCP_PROJECT_ID }}"
+          -BillingAccount "${{ secrets.GCP_BILLING_ACCOUNT }}"
           -Region "${{ inputs.region }}"

@@ -30,6 +30,7 @@ flowchart TD
 ## Technology Contract v1
 
 - **Runtime:** Python, Google ADK 2.x Graph Workflow, FastAPI.
+- **Agents:** Real ADK `LlmAgent` nodes for Intent Compiler, Planner, and Worker.
 - **Models:** Gemini 3.5 Flash-Lite first; Gemini 3.5 Flash escalation only.
 - **Protocol:** Typed JSON events; no agent-to-agent prose.
 - **Policy:** Immutable Pydantic `IntentContract`; deterministic Python first; Gemini semantic fallback.
@@ -100,10 +101,16 @@ The evaluation suite covers valid delegation, omission, contradiction, weakening
 
 ## Deploy
 
-Create Firestore in Native mode and Secret Manager secret `gemini-api-key`, then:
+Provision idempotent Google Cloud infrastructure, then deploy:
 
 ```powershell
-.\deploy\cloudrun.ps1 -ProjectId "YOUR_PROJECT_ID" -Region "us-central1"
+.\scripts\bootstrap-gcp.ps1 `
+  -ProjectId "YOUR_PROJECT_ID" `
+  -BillingAccount "XXXXXX-XXXXXX-XXXXXX"
+
+.\deploy\cloudrun.ps1 `
+  -ProjectId "YOUR_PROJECT_ID" `
+  -BillingAccount "XXXXXX-XXXXXX-XXXXXX"
 ```
 
 Deployment details: `deploy/README.md`. Security policy: `SECURITY.md`. Demo script: `docs/DEMO.md`.

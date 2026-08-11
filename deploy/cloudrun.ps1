@@ -1,8 +1,11 @@
 param(
     [Parameter(Mandatory = $true)]
     [string]$ProjectId,
-    [string]$Region = "us-central1",
+    [Parameter(Mandatory = $true)]
+    [string]$BillingAccount,
+    [string]$Region = "asia-southeast1",
     [string]$Repository = "invariantx",
+    [string]$RuntimeServiceAccount = "invariantx-runtime",
     [string]$BackendService = "invariantx-api",
     [string]$FrontendService = "invariantx-web",
     [string]$GeminiSecret = "gemini-api-key"
@@ -16,42 +19,50 @@ if (-not (Get-Command gcloud -ErrorAction SilentlyContinue)) {
 
 $root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $registry = "$Region-docker.pkg.dev"
+$serviceAccountEmail = "$RuntimeServiceAccount@$ProjectId.iam.gserviceaccount.com"
 $backendImage = "$registry/$ProjectId/$Repository/backend:$((git -C $root rev-parse --short HEAD).Trim())"
 $frontendImage = "$registry/$ProjectId/$Repository/frontend:$((git -C $root rev-parse --short HEAD).Trim())"
+$frontendBuildConfig = Join-Path $root "deploy\cloudbuild.frontend.yaml"
 
 gcloud config set project $ProjectId
-gcloud services enable run.googleapis.com artifactregistry.googleapis.com firestore.googleapis.com secretmanager.googleapis.com
+& (Join-Path $root "scripts\verify-gcp.ps1") `
+    -ProjectId $ProjectId `
+    -BillingAccount $BillingAccount `
+    -Region $Region `
+    -RuntimeServiceAccount $RuntimeServiceAccount `
+    -ArtifactRepository $Repository `
+    -GeminiSecret $GeminiSecret
 
-$repositories = gcloud artifacts repositories list --location $Region --format "value(name)"
-if ($repositories -notcontains $Repository) {
-    gcloud artifacts repositories create $Repository --repository-format docker --location $Region
-}
-
-gcloud auth configure-docker $registry --quiet
-
-docker build -t $backendImage (Join-Path $root "backend")
-docker push $backendImage
+gcloud builds submit (Join-Path $root "backend") --tag=$backendImage
 
 gcloud run deploy $BackendService `
     --image $backendImage `
     --region $Region `
     --platform managed `
     --allow-unauthenticated `
+    --service-account=$serviceAccountEmail `
+    --min-instances=0 `
     --max-instances 1 `
-    --set-env-vars "INVARIANT_STORE=firestore" `
+    --cpu=1 `
+    --memory=512Mi `
+    --set-env-vars "GOOGLE_CLOUD_PROJECT=$ProjectId,INVARIANT_STORE=firestore" `
     --set-secrets "GEMINI_API_KEY=$GeminiSecret`:latest"
 
 $backendUrl = (gcloud run services describe $BackendService --region $Region --format "value(status.url)").Trim()
 
-docker build --build-arg "NEXT_PUBLIC_API_BASE_URL=$backendUrl" -t $frontendImage (Join-Path $root "frontend")
-docker push $frontendImage
+gcloud builds submit $root `
+    --config=$frontendBuildConfig `
+    --substitutions="_IMAGE=$frontendImage,_NEXT_PUBLIC_API_BASE_URL=$backendUrl"
 
 gcloud run deploy $FrontendService `
     --image $frontendImage `
     --region $Region `
     --platform managed `
     --allow-unauthenticated `
-    --max-instances 1
+    --min-instances=0 `
+    --max-instances=2 `
+    --cpu=1 `
+    --memory=512Mi
 
 $frontendUrl = (gcloud run services describe $FrontendService --region $Region --format "value(status.url)").Trim()
 
@@ -61,3 +72,5 @@ gcloud run services update $BackendService `
 
 Write-Output "Backend:  $backendUrl"
 Write-Output "Frontend: $frontendUrl"
+
+& (Join-Path $PSScriptRoot "smoke-test.ps1") -BackendUrl $backendUrl

@@ -106,6 +106,29 @@ class IntentContract(FrozenModel):
         return self
 
 
+class IntentContractCandidate(FrozenModel):
+    schema_version: Literal["1.0"] = "1.0"
+    objectives: tuple[Objective, ...] = Field(min_length=1)
+    hard_constraints: tuple[Constraint, ...] = ()
+    protected_entities: tuple[str, ...] = ()
+    forbidden_outcomes: tuple[str, ...] = ()
+    semantic_constraints: tuple[SemanticConstraint, ...] = ()
+
+    @model_validator(mode="after")
+    def require_unique_ids(self) -> IntentContractCandidate:
+        ids = [
+            item.id
+            for item in (
+                *self.objectives,
+                *self.hard_constraints,
+                *self.semantic_constraints,
+            )
+        ]
+        if len(ids) != len(set(ids)):
+            raise ValueError("objective and constraint ids must be unique")
+        return self
+
+
 class ConstraintClaim(FrozenModel):
     constraint_id: str = Field(min_length=1)
     subject: str = Field(min_length=1)

@@ -4,12 +4,13 @@ from app.domain.logistics import medical_logistics_contract
 from app.runtime.events import EventType, RunStatus
 from app.runtime.service import RunService
 from app.storage.memory import InMemoryStore
+from tests.test_api import fake_agent_nodes
 
 
 def test_run_contract_and_events_survive_service_restart() -> None:
     async def run():
         store = InMemoryStore()
-        first_service = RunService(store=store)
+        first_service = RunService(store=store, agent_nodes=fake_agent_nodes())
         created = await first_service.create(
             "Reduce logistics cost without delaying medical orders"
         )

@@ -15,6 +15,7 @@ from app.invariant.models import (
     ToolRisk,
 )
 from app.invariant.semantic import SemanticVerifier
+from app.runtime.agents import AgentNodes
 from app.runtime.workflow import (
     WorkflowRequest,
     WorkflowResult,
@@ -23,33 +24,63 @@ from app.runtime.workflow import (
 
 
 def workflow_request(
-    *,
-    planner_output: DelegationProposal | None = None,
-    medical_delay: float = 10,
-    contract=None,
 ) -> WorkflowRequest:
-    contract = contract or medical_logistics_contract()
     return WorkflowRequest(
         run_id="run-001",
-        contract=contract,
-        planner_output=planner_output
-        or DelegationProposal(
-            task_id="T-14",
-            contract_id=contract.id,
-            contract_version=contract.version,
-            action="choose_cheapest_route",
-        ),
-        worker_output=ActionProposal(
+        goal="Reduce logistics cost by 15% without delaying medical orders.",
+        state={"baseline.medical_delay": 10},
+    )
+
+
+def fake_agent_nodes(
+    *,
+    contract=None,
+    planner_output: DelegationProposal | None = None,
+    medical_delay: float = 10,
+) -> AgentNodes:
+    contract = contract or medical_logistics_contract()
+
+    def intent_compiler(node_input):
+        del node_input
+        return {
+            "objectives": contract.objectives,
+            "hard_constraints": contract.hard_constraints,
+            "protected_entities": contract.protected_entities,
+            "forbidden_outcomes": contract.forbidden_outcomes,
+            "semantic_constraints": contract.semantic_constraints,
+        }
+
+    def planner_agent(node_input):
+        compiled = node_input["contract"]
+        return (
+            planner_output.model_copy(
+                update={
+                    "contract_id": compiled["id"],
+                    "contract_version": compiled["version"],
+                }
+            ).model_dump(mode="json")
+            if planner_output is not None
+            else DelegationProposal(
+                task_id="T-14",
+                contract_id=compiled["id"],
+                contract_version=compiled["version"],
+                action="choose_cheapest_route",
+            ).model_dump(mode="json")
+        )
+
+    def worker_agent(node_input):
+        compiled = node_input["contract"]
+        return ActionProposal(
             action_id="A-1",
-            contract_id=contract.id,
-            contract_version=contract.version,
+            contract_id=compiled["id"],
+            contract_version=compiled["version"],
             tool_name="apply_plan",
             risk=ToolRisk.SIDE_EFFECT,
             arguments={"plan_id": "plan-safe"},
             proposed_metrics={"delivery_delay": medical_delay},
-        ),
-        state={"baseline.medical_delay": 10},
-    )
+        ).model_dump(mode="json")
+
+    return AgentNodes(intent_compiler, planner_agent, worker_agent)
 
 
 def run_workflow(
@@ -59,6 +90,7 @@ def run_workflow(
     max_llm_calls: int = 5,
     max_repairs: int = 2,
     action_decision_sink: Callable[[GateVerdict], Awaitable[None]] | None = None,
+    agent_nodes: AgentNodes | None = None,
 ) -> tuple[WorkflowResult, dict, list]:
     async def run() -> tuple[WorkflowResult, dict, list]:
         tools = LogisticsTools()
@@ -68,6 +100,7 @@ def run_workflow(
             max_llm_calls=max_llm_calls,
             max_repairs=max_repairs,
             action_decision_sink=action_decision_sink,
+            agent_nodes=agent_nodes or fake_agent_nodes(),
         )
         runner = InMemoryRunner(node=workflow, app_name="invariant_test")
         await runner.session_service.create_session(
@@ -101,10 +134,10 @@ def test_adk_graph_repairs_drift_then_executes() -> None:
 
     assert result.status == "COMPLETED"
     assert result.repair_count == 1
-    assert result.llm_call_count == 0
+    assert result.llm_call_count == 3
     assert result.tool_result == {"status": "applied", "plan_id": "plan-safe"}
     assert state["repair_count"] == 1
-    assert state["llm_call_count"] == 0
+    assert state["llm_call_count"] == 3
     assert [event.actions.route for event in events if event.actions.route] == [
         "REPAIR",
         "RECHECK",
@@ -114,7 +147,9 @@ def test_adk_graph_repairs_drift_then_executes() -> None:
 
 
 def test_adk_graph_blocks_unsafe_action_before_tool() -> None:
-    result, _, events = run_workflow(workflow_request(medical_delay=11))
+    result, _, events = run_workflow(
+        workflow_request(), agent_nodes=fake_agent_nodes(medical_delay=11)
+    )
 
     assert result.status == "BLOCKED"
     assert result.tool_result is None
@@ -142,7 +177,11 @@ def test_adk_graph_blocks_objective_substitution_without_repair() -> None:
     )
 
     result, state, _ = run_workflow(
-        workflow_request(planner_output=planner_output)
+        workflow_request(),
+        agent_nodes=fake_agent_nodes(
+            contract=contract,
+            planner_output=planner_output,
+        ),
     )
 
     assert result.status == "BLOCKED"

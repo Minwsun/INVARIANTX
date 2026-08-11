@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from dataclasses import dataclass
 from typing import Any
 from uuid import uuid4
@@ -9,16 +10,14 @@ from google.adk.runners import InMemoryRunner
 from google.genai import types
 from pydantic import Field
 
-from app.domain.logistics import medical_logistics_contract
 from app.domain.logistics_tools import LogisticsTools
 from app.invariant.models import (
-    ActionProposal,
-    DelegationProposal,
     FrozenModel,
     GateStatus,
     IntentContract,
     ToolRisk,
 )
+from app.runtime.agents import AgentNodes
 from app.runtime.events import EventJournal, EventType, RunStatus
 from app.runtime.workflow import WorkflowRequest, WorkflowResult, build_invariant_workflow
 from app.storage.memory import InMemoryStore
@@ -40,22 +39,34 @@ class RunSnapshot(FrozenModel):
 class _RunRecord:
     snapshot: RunSnapshot
     request: WorkflowRequest
+    contract: IntentContract | None = None
     task: asyncio.Task[None] | None = None
 
 
 class RunService:
-    def __init__(self, store=None, journal: EventJournal | None = None) -> None:
+    def __init__(
+        self,
+        store=None,
+        journal: EventJournal | None = None,
+        agent_nodes: AgentNodes | None = None,
+    ) -> None:
         self.store = store or InMemoryStore()
         self.journal = journal or EventJournal(self.store)
+        self.agent_nodes = agent_nodes
         self._runs: dict[str, _RunRecord] = {}
 
     async def create(self, goal: str) -> RunSnapshot:
+        if self.agent_nodes is None and not os.getenv("GEMINI_API_KEY"):
+            raise ValueError("GEMINI_API_KEY is required for real agent execution")
         run_id = f"run_{uuid4().hex}"
-        request = _compile_logistics_demo(goal, run_id)
+        request = WorkflowRequest(
+            run_id=run_id,
+            goal=goal,
+            state={"baseline.medical_delay": 10},
+        )
         snapshot = RunSnapshot(run_id=run_id, status=RunStatus.CREATED, goal=goal)
         record = _RunRecord(snapshot=snapshot, request=request)
         self._runs[run_id] = record
-        await self.store.create_contract(request.contract)
         await self._save_snapshot(record)
         await self.journal.append(run_id, EventType.RUN_CREATED, "api")
         record.task = asyncio.create_task(self._execute(record))
@@ -72,8 +83,8 @@ class RunService:
 
     async def contract(self, run_id: str):
         record = self._runs.get(run_id)
-        if record is not None:
-            return record.request.contract
+        if record is not None and record.contract is not None:
+            return record.contract
         snapshot = await self.get(run_id)
         if snapshot.contract_id is None or snapshot.contract_version is None:
             raise KeyError(f"contract for run {run_id} not found")
@@ -116,18 +127,27 @@ class RunService:
                 {"status": verdict.status.value},
             )
 
+        async def persist_contract(contract: IntentContract) -> None:
+            await self.store.create_contract(contract)
+            record.contract = contract
+            record.snapshot = record.snapshot.model_copy(
+                update={
+                    "contract_id": contract.id,
+                    "contract_version": contract.version,
+                }
+            )
+            await self._save_snapshot(record)
+
         workflow = build_invariant_workflow(
             {"apply_plan": (tools.apply_plan, ToolRisk.SIDE_EFFECT)},
             action_decision_sink=persist_action_decision,
+            contract_sink=persist_contract,
+            agent_nodes=self.agent_nodes,
         )
         runner = InMemoryRunner(node=workflow, app_name="invariant")
         try:
             record.snapshot = record.snapshot.model_copy(
-                update={
-                    "status": RunStatus.RUNNING,
-                    "contract_id": record.request.contract.id,
-                    "contract_version": record.request.contract.version,
-                }
+                update={"status": RunStatus.RUNNING}
             )
             await self._save_snapshot(record)
             await self.journal.append(run_id, EventType.RUN_STARTED, "runtime")
@@ -194,7 +214,8 @@ class RunService:
         node_name = event.node_info.path.rsplit("/", 1)[-1].split("@", 1)[0]
         route = event.actions.route
         mapping = {
-            "parse_request": EventType.CONTRACT_REGISTERED,
+            "intent_compiler": EventType.INTENT_COMPILED,
+            "register_contract": EventType.CONTRACT_REGISTERED,
             "planner_agent": EventType.TASK_PROPOSED,
             "repair_task": EventType.REPAIR_ACCEPTED,
             "worker_agent": EventType.ACTION_PROPOSED,
@@ -227,38 +248,3 @@ class RunService:
             record.snapshot.run_id,
             record.snapshot.model_dump(mode="json"),
         )
-
-
-def _compile_logistics_demo(goal: str, run_id: str) -> WorkflowRequest:
-    normalized = goal.casefold()
-    mentions_cost = "cost" in normalized or "chi phí" in normalized
-    mentions_medical = "medical" in normalized or "y tế" in normalized
-    if not mentions_cost or not mentions_medical:
-        raise ValueError("MVP demo supports goals containing cost and medical constraints")
-    contract = medical_logistics_contract().model_copy(
-        update={"id": f"intent_{run_id}", "original_request": goal}
-    )
-    # ponytail: deterministic demo compiler supports one logistics scenario;
-    # replace with the Gemini Intent Compiler in the model-agent milestone.
-    planner_output = DelegationProposal(
-        task_id=f"task_{run_id}",
-        contract_id=contract.id,
-        contract_version=contract.version,
-        action="choose_cheapest_route",
-    )
-    worker_output = ActionProposal(
-        action_id=f"action_{run_id}",
-        contract_id=contract.id,
-        contract_version=contract.version,
-        tool_name="apply_plan",
-        risk=ToolRisk.SIDE_EFFECT,
-        arguments={"plan_id": f"plan_{run_id}"},
-        proposed_metrics={"delivery_delay": 10},
-    )
-    return WorkflowRequest(
-        run_id=run_id,
-        contract=contract,
-        planner_output=planner_output,
-        worker_output=worker_output,
-        state={"baseline.medical_delay": 10},
-    )

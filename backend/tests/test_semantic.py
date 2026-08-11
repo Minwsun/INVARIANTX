@@ -14,7 +14,7 @@ from app.invariant.semantic import (
     SemanticVerdict,
     SemanticVerifier,
 )
-from tests.test_workflow import run_workflow, workflow_request
+from tests.test_workflow import fake_agent_nodes, run_workflow, workflow_request
 
 
 def semantic_contract():
@@ -104,7 +104,8 @@ def test_graph_repairs_semantic_drift_then_rechecks() -> None:
 
     contract = semantic_contract()
     result, state, _ = run_workflow(
-        workflow_request(
+        workflow_request(),
+        agent_nodes=fake_agent_nodes(
             contract=contract,
             planner_output=preserved_proposal(contract),
         ),
@@ -113,9 +114,9 @@ def test_graph_repairs_semantic_drift_then_rechecks() -> None:
 
     assert result.status == "COMPLETED"
     assert result.repair_count == 1
-    assert result.llm_call_count == 2
-    assert len(result.model_calls) == 2
-    assert state["llm_call_count"] == 2
+    assert result.llm_call_count == 5
+    assert len(result.model_calls) == 5
+    assert state["llm_call_count"] == 5
     assert "Preserve invariant:" not in prompts[0]
     assert "Preserve invariant:" in prompts[1]
 
@@ -134,16 +135,17 @@ def test_graph_blocks_uncertain_semantics_when_budget_cannot_escalate() -> None:
 
     contract = semantic_contract()
     result, _, _ = run_workflow(
-        workflow_request(
+        workflow_request(),
+        agent_nodes=fake_agent_nodes(
             contract=contract,
             planner_output=preserved_proposal(contract),
         ),
         semantic_verifier=SemanticVerifier(uncertain_call),
-        max_llm_calls=1,
+        max_llm_calls=3,
     )
 
     assert result.status == "BLOCKED"
-    assert result.llm_call_count == 1
+    assert result.llm_call_count == 3
     assert result.violations[0].reference_id == "semantic_verifier"
 
 
@@ -184,10 +186,11 @@ def test_deterministic_drift_blocks_before_semantic_call() -> None:
     )
 
     result, _, _ = run_workflow(
-        workflow_request(contract=contract, planner_output=incomplete),
+        workflow_request(),
+        agent_nodes=fake_agent_nodes(contract=contract, planner_output=incomplete),
         semantic_verifier=SemanticVerifier(forbidden_call),
         max_repairs=0,
     )
 
     assert result.status == "BLOCKED"
-    assert result.llm_call_count == 0
+    assert result.llm_call_count == 2
