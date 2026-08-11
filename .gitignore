@@ -5,4 +5,10 @@ __pycache__/
 dist/
 build/
 *.egg-info/
-
+node_modules/
+.next/
+.env
+.env.*
+!.env.example
+playwright-report/
+test-results/
