@@ -109,8 +109,10 @@ def build_invariant_workflow(
         ctx: Context,
         node_input: Any,
     ) -> WorkflowPacket:
-        candidate = IntentContractCandidate.model_validate(node_input)
         request = WorkflowRequest.model_validate(ctx.state["workflow_request"])
+        candidate = IntentContractCandidate.model_validate(
+            _ground_constraint_references(node_input, request.state)
+        )
         contract = IntentContract(
             id=f"intent_{request.run_id}",
             version=1,
@@ -435,3 +437,23 @@ def build_invariant_workflow(
             (execute_tool, validate_result, finalize),
         ],
     )
+
+
+def _ground_constraint_references(
+    candidate: Any,
+    state: dict[str, float],
+) -> Any:
+    if not isinstance(candidate, dict):
+        return candidate
+    normalized = {**candidate}
+    constraints = []
+    for constraint in candidate.get("hard_constraints", []):
+        item = dict(constraint)
+        if item.get("value") is None and item.get("value_ref") is None:
+            metric = item.get("metric")
+            matches = [key for key in state if key.rsplit(".", 1)[-1] == metric]
+            if len(matches) == 1:
+                item["value_ref"] = matches[0]
+        constraints.append(item)
+    normalized["hard_constraints"] = constraints
+    return normalized

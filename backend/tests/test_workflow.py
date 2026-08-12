@@ -19,6 +19,7 @@ from app.runtime.agents import AgentNodes
 from app.runtime.workflow import (
     WorkflowRequest,
     WorkflowResult,
+    _ground_constraint_references,
     build_invariant_workflow,
 )
 
@@ -29,6 +30,30 @@ def workflow_request(
         run_id="run-001",
         goal="Reduce logistics cost by 15% without delaying medical orders.",
         state={"baseline.medical_delay": 10},
+    )
+
+
+def test_compiler_constraints_are_grounded_from_unique_state_metric() -> None:
+    candidate = {
+        "objectives": [],
+        "hard_constraints": [
+            {
+                "id": "MEDICAL_SLA",
+                "subject": "medical_orders",
+                "metric": "medical_delay",
+                "operator": "less_than_or_equal",
+                "source_span": "without delaying medical orders",
+            }
+        ],
+    }
+
+    grounded = _ground_constraint_references(
+        candidate,
+        {"baseline.medical_delay": 10},
+    )
+
+    assert grounded["hard_constraints"][0]["value_ref"] == (
+        "baseline.medical_delay"
     )
 
 
