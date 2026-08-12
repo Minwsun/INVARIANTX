@@ -28,12 +28,19 @@ if ($run.llm_call_count -ne 3) { throw "expected exactly three LLM calls" }
 if ($run.result.validation.verdict -ne "PASS") { throw "final validation failed" }
 
 $contract = Invoke-RestMethod "$BackendUrl/runs/$($created.run_id)/contract"
-$stream = Invoke-WebRequest "$BackendUrl/runs/$($created.run_id)/events"
+$http = [System.Net.Http.HttpClient]::new()
+try {
+    $streamContent = $http.GetStringAsync(
+        "$BackendUrl/runs/$($created.run_id)/events"
+    ).GetAwaiter().GetResult()
+} finally {
+    $http.Dispose()
+}
 $events = @(
-    $stream.Content -split "`n`n" |
+    $streamContent -split "`r?`n`r?`n" |
         Where-Object { $_ -match "data: " } |
         ForEach-Object {
-            $dataLine = ($_ -split "`n" | Where-Object { $_ -like "data: *" })[0]
+            $dataLine = ($_ -split "`r?`n" | Where-Object { $_ -like "data: *" })[0]
             ($dataLine.Substring(6) | ConvertFrom-Json)
         }
 )
