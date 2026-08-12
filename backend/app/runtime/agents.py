@@ -28,16 +28,31 @@ def gemini_schema(model_type: type) -> dict[str, Any]:
 
     def sanitize(value: Any) -> Any:
         if isinstance(value, dict):
-            return {
-                key: sanitize(item)
-                for key, item in value.items()
-                if key != "additionalProperties"
-            }
+            result = {}
+            for key, item in value.items():
+                if key == "additionalProperties":
+                    continue
+                if key == "$defs":
+                    result["defs"] = sanitize(item)
+                    continue
+                if key == "$ref":
+                    result["ref"] = item.replace("#/$defs/", "#/defs/")
+                    continue
+                if key == "const":
+                    result["enum"] = [item]
+                    continue
+                if key == "exclusiveMinimum":
+                    result["minimum"] = item + 1 if isinstance(item, int) else item
+                    continue
+                result[key] = sanitize(item)
+            return result
         if isinstance(value, list):
             return [sanitize(item) for item in value]
         return value
 
-    return sanitize(schema)
+    sanitized = sanitize(schema)
+    types.Schema.model_validate(sanitized)
+    return sanitized
 
 
 def build_agent_nodes(model: str = DEFAULT_MODEL) -> AgentNodes:

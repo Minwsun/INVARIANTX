@@ -31,4 +31,7 @@ def test_workflow_request_accepts_only_goal_and_runtime_state() -> None:
 
 def test_gemini_schema_removes_unsupported_additional_properties() -> None:
     for model_type in (IntentContractCandidate, ActionProposal):
-        assert "additionalProperties" not in str(gemini_schema(model_type))
+        schema = str(gemini_schema(model_type))
+        assert "additionalProperties" not in schema
+        assert "exclusiveMinimum" not in schema
+        assert "'const'" not in schema
