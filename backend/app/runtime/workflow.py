@@ -481,11 +481,23 @@ def _ground_constraint_references(
     constraints = []
     for constraint in candidate.get("hard_constraints", []):
         item = dict(constraint)
+        metric = item.get("metric")
+        baseline_matches = [
+            key for key in state if key.rsplit(".", 1)[-1] == metric
+        ]
+        source_span = str(item.get("source_span", "")).lower()
+        if (
+            item.get("operator") == "equal"
+            and item.get("value") == 0
+            and len(baseline_matches) == 1
+            and any(term in source_span for term in ("without delay", "not delay"))
+        ):
+            item["operator"] = "less_than_or_equal"
+            item["value"] = None
+            item["value_ref"] = baseline_matches[0]
         if item.get("value") is None and not item.get("value_ref"):
-            metric = item.get("metric")
-            matches = [key for key in state if key.rsplit(".", 1)[-1] == metric]
-            if len(matches) == 1:
-                item["value_ref"] = matches[0]
+            if len(baseline_matches) == 1:
+                item["value_ref"] = baseline_matches[0]
         if item.get("value") is None:
             item.pop("value", None)
         if not item.get("value_ref"):
@@ -612,7 +624,11 @@ def _objective_holds(
         target /= 100
     elif unit != "ratio":
         return False
-    if operator in {"decrease_by", "decrease_by_at_least"}:
+    if operator in {
+        "decrease_by",
+        "decrease_by_at_least",
+        "decrease_by_percentage",
+    }:
         return baseline != 0 and (baseline - actual) / baseline >= target
     if operator == "less_than_or_equal":
         return actual <= target
