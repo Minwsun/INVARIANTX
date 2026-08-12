@@ -22,6 +22,10 @@ do {
 
 if ($run.status -ne "COMPLETED") { throw "real run ended with status $($run.status): $($run.error)" }
 if ($run.llm_call_count -gt 5) { throw "LLM call budget exceeded" }
+if ($run.result.validation.verdict -ne "PASS") { throw "final contract validation failed" }
+if ($run.result.validation.objective_status.PSObject.Properties.Value -contains $false) { throw "objective validation failed" }
+if ($run.result.validation.constraint_status.PSObject.Properties.Value -contains $false) { throw "constraint validation failed" }
+if (-not $run.result.tool_result.actual_metrics) { throw "execution receipt has no actual metrics" }
 $contract = Invoke-RestMethod "$BackendUrl/runs/$($created.run_id)/contract"
 if (-not $contract.objectives) { throw "compiled contract has no objectives" }
 

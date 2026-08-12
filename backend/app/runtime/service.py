@@ -62,7 +62,10 @@ class RunService:
         request = WorkflowRequest(
             run_id=run_id,
             goal=goal,
-            state={"baseline.medical_delay": 10},
+            state={
+                "baseline.medical_delay": 10,
+                "baseline.logistics_cost": 100,
+            },
         )
         snapshot = RunSnapshot(run_id=run_id, status=RunStatus.CREATED, goal=goal)
         record = _RunRecord(snapshot=snapshot, request=request)

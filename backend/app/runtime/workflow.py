@@ -16,6 +16,7 @@ from app.invariant.models import (
     ActionProposal,
     DelegationProposal,
     DriftType,
+    ExecutionReceipt,
     FrozenModel,
     GateVerdict,
     GateStatus,
@@ -23,6 +24,7 @@ from app.invariant.models import (
     IntentContractCandidate,
     Permission,
     ToolRisk,
+    ValidationResult,
     Violation,
 )
 from app.invariant.repair import repair_delegation
@@ -48,6 +50,7 @@ class WorkflowPacket(FrozenModel):
     llm_call_count: int = 0
     model_calls: tuple[ModelCallRecord, ...] = ()
     tool_result: Any = None
+    validation: ValidationResult | None = None
     status: Literal["RUNNING", "BLOCKED", "COMPLETED"] = "RUNNING"
 
 
@@ -59,6 +62,7 @@ class WorkflowResult(FrozenModel):
     violations: tuple[Violation, ...]
     model_calls: tuple[ModelCallRecord, ...]
     tool_result: Any = None
+    validation: ValidationResult | None = None
 
 
 def build_invariant_workflow(
@@ -128,10 +132,13 @@ def build_invariant_workflow(
             await contract_sink(contract)
         ctx.state["contract_id"] = contract.id
         ctx.state["contract_version"] = contract.version
-        return _record_agent_call(
+        return _attach_agent_telemetry(
             ctx,
-            WorkflowPacket(request=request, contract=contract),
-            DEFAULT_MODEL,
+            WorkflowPacket(
+                request=request,
+                contract=contract,
+                llm_call_count=int(ctx.state["llm_call_count"]),
+            ),
             "intent_compiler",
         )
 
@@ -148,10 +155,9 @@ def build_invariant_workflow(
     def merge_planner(ctx: Context, node_input: Any) -> WorkflowPacket:
         packet = WorkflowPacket.model_validate(ctx.state["workflow_packet"])
         proposal = DelegationProposal.model_validate(node_input)
-        return _record_agent_call(
+        return _attach_agent_telemetry(
             ctx,
             packet.model_copy(update={"delegation": proposal}),
-            DEFAULT_MODEL,
             "planner_agent",
         )
 
@@ -295,10 +301,9 @@ def build_invariant_workflow(
     def merge_worker(ctx: Context, node_input: Any) -> WorkflowPacket:
         packet = WorkflowPacket.model_validate(ctx.state["workflow_packet"])
         action = ActionProposal.model_validate(node_input)
-        return _record_agent_call(
+        return _attach_agent_telemetry(
             ctx,
             packet.model_copy(update={"action": action}),
-            DEFAULT_MODEL,
             "worker_agent",
         )
 
@@ -351,8 +356,14 @@ def build_invariant_workflow(
         return node_input.model_copy(update={"tool_result": result})
 
     def validate_result(node_input: WorkflowPacket) -> WorkflowPacket:
-        status = "COMPLETED" if node_input.tool_result is not None else "BLOCKED"
-        return node_input.model_copy(update={"status": status})
+        validation = _validate_execution(node_input)
+        return node_input.model_copy(
+            update={
+                "status": "COMPLETED" if validation.verdict == "PASS" else "BLOCKED",
+                "validation": validation,
+                "violations": validation.violations,
+            }
+        )
 
     def finalize(node_input: WorkflowPacket) -> WorkflowResult:
         status = "COMPLETED" if node_input.status == "COMPLETED" else "BLOCKED"
@@ -364,6 +375,7 @@ def build_invariant_workflow(
             violations=node_input.violations,
             model_calls=node_input.model_calls,
             tool_result=node_input.tool_result,
+            validation=node_input.validation,
         )
 
     def remember_request(ctx: Context, node_input: WorkflowPacket) -> WorkflowPacket:
@@ -374,20 +386,38 @@ def build_invariant_workflow(
         ctx.state["workflow_packet"] = node_input.model_dump(mode="json")
         return node_input
 
-    def _record_agent_call(
+    def reserve_agent_call(
+        ctx: Context,
+        node_input: WorkflowPacket,
+    ) -> WorkflowPacket:
+        if node_input.llm_call_count >= max_llm_calls:
+            raise RuntimeError("LLM call budget exhausted")
+        packet = node_input.model_copy(
+            update={"llm_call_count": node_input.llm_call_count + 1}
+        )
+        ctx.state["llm_call_count"] = packet.llm_call_count
+        ctx.state["workflow_packet"] = packet.model_dump(mode="json")
+        return packet
+
+    def reserve_compiler_call(ctx: Context, node_input: WorkflowPacket) -> WorkflowPacket:
+        return reserve_agent_call(ctx, node_input)
+
+    def reserve_planner_call(ctx: Context, node_input: WorkflowPacket) -> WorkflowPacket:
+        return reserve_agent_call(ctx, node_input)
+
+    def reserve_worker_call(ctx: Context, node_input: WorkflowPacket) -> WorkflowPacket:
+        return reserve_agent_call(ctx, node_input)
+
+    def _attach_agent_telemetry(
         ctx: Context,
         packet: WorkflowPacket,
-        model: str,
         agent_name: str,
     ) -> WorkflowPacket:
-        count = packet.llm_call_count + 1
-        if count > max_llm_calls:
-            raise RuntimeError("LLM call budget exhausted")
-        ctx.state["llm_call_count"] = count
-        telemetry = ctx.state.get(f"model_call.{agent_name}") or {"model": model}
+        telemetry = ctx.state.get(f"model_call.{agent_name}") or {
+            "model": DEFAULT_MODEL
+        }
         return packet.model_copy(
             update={
-                "llm_call_count": count,
                 "model_calls": (
                     *packet.model_calls,
                     ModelCallRecord.model_validate(telemetry),
@@ -402,10 +432,12 @@ def build_invariant_workflow(
                 START,
                 parse_request,
                 remember_request,
+                reserve_compiler_call,
                 prepare_intent,
                 nodes.intent_compiler,
                 register_contract,
                 remember_packet,
+                reserve_planner_call,
                 prepare_planner,
                 nodes.planner,
                 merge_planner,
@@ -414,7 +446,7 @@ def build_invariant_workflow(
             (
                 check_delegation,
                 {
-                    GateStatus.PASS.value: prepare_worker,
+                    GateStatus.PASS.value: reserve_worker_call,
                     GateStatus.REPAIR.value: repair_task,
                     GateStatus.BLOCK.value: finalize,
                 },
@@ -426,7 +458,7 @@ def build_invariant_workflow(
                     GateStatus.BLOCK.value: finalize,
                 },
             ),
-            (prepare_worker, nodes.worker, merge_worker, check_action),
+            (reserve_worker_call, prepare_worker, nodes.worker, merge_worker, check_action),
             (
                 check_action,
                 {
@@ -457,3 +489,141 @@ def _ground_constraint_references(
         constraints.append(item)
     normalized["hard_constraints"] = constraints
     return normalized
+
+
+def _validate_execution(packet: WorkflowPacket) -> ValidationResult:
+    if packet.contract is None:
+        return _blocked_validation("contract", "intent contract is missing")
+    try:
+        receipt = ExecutionReceipt.model_validate(packet.tool_result)
+    except Exception as error:
+        return _blocked_validation("execution_receipt", f"invalid receipt: {error}")
+    if receipt.status != "applied":
+        return _blocked_validation(
+            "execution_receipt",
+            f"tool status is {receipt.status!r}, expected 'applied'",
+        )
+
+    violations: list[Violation] = []
+    objective_status: dict[str, bool] = {}
+    constraint_status: dict[str, bool] = {}
+
+    for objective in packet.contract.objectives:
+        actual = receipt.actual_metrics.get(objective.metric)
+        reference_key = objective.reference
+        if reference_key not in packet.request.state:
+            reference_key = f"baseline.{objective.metric}"
+        baseline = packet.request.state.get(reference_key)
+        passed = (
+            actual is not None
+            and baseline is not None
+            and _objective_holds(
+                actual,
+                baseline,
+                objective.operator,
+                objective.target,
+                objective.unit,
+            )
+        )
+        objective_status[objective.id] = passed
+        if not passed:
+            violations.append(
+                Violation(
+                    drift_type=DriftType.INSUFFICIENT_EVIDENCE,
+                    reference_id=objective.id,
+                    evidence="actual metric missing or objective target not satisfied",
+                )
+            )
+
+    for constraint in packet.contract.hard_constraints:
+        actual = receipt.actual_metrics.get(constraint.metric)
+        expected = (
+            constraint.value
+            if constraint.value is not None
+            else packet.request.state.get(constraint.value_ref or "")
+        )
+        passed = (
+            actual is not None
+            and expected is not None
+            and _constraint_holds(actual, expected, constraint.operator.value)
+        )
+        constraint_status[constraint.id] = passed
+        if not passed:
+            violations.append(
+                Violation(
+                    drift_type=DriftType.CONTRADICTION,
+                    reference_id=constraint.id,
+                    evidence="actual metric missing or hard constraint violated",
+                )
+            )
+
+    for outcome in packet.contract.forbidden_outcomes:
+        if outcome in receipt.occurred_outcomes:
+            violations.append(
+                Violation(
+                    drift_type=DriftType.CONTRADICTION,
+                    reference_id=outcome,
+                    evidence="forbidden outcome occurred",
+                )
+            )
+    for entity in packet.contract.protected_entities:
+        if receipt.protected_entities.get(entity) is not True:
+            violations.append(
+                Violation(
+                    drift_type=DriftType.INSUFFICIENT_EVIDENCE,
+                    reference_id=entity,
+                    evidence="protected entity preservation is missing or false",
+                )
+            )
+
+    return ValidationResult(
+        verdict="BLOCK" if violations else "PASS",
+        objective_status=objective_status,
+        constraint_status=constraint_status,
+        violations=tuple(violations),
+    )
+
+
+def _blocked_validation(reference_id: str, evidence: str) -> ValidationResult:
+    return ValidationResult(
+        verdict="BLOCK",
+        violations=(
+            Violation(
+                drift_type=DriftType.INSUFFICIENT_EVIDENCE,
+                reference_id=reference_id,
+                evidence=evidence,
+            ),
+        ),
+    )
+
+
+def _objective_holds(
+    actual: float,
+    baseline: float,
+    operator: str,
+    target: float,
+    unit: str,
+) -> bool:
+    if unit == "percent":
+        target /= 100
+    elif unit != "ratio":
+        return False
+    if operator in {"decrease_by", "decrease_by_at_least"}:
+        return baseline != 0 and (baseline - actual) / baseline >= target
+    if operator == "less_than_or_equal":
+        return actual <= target
+    if operator == "greater_than_or_equal":
+        return actual >= target
+    if operator == "equal":
+        return actual == target
+    return False
+
+
+def _constraint_holds(actual: float, expected: float, operator: str) -> bool:
+    if operator == "less_than_or_equal":
+        return actual <= expected
+    if operator == "greater_than_or_equal":
+        return actual >= expected
+    if operator == "equal":
+        return actual == expected
+    return False

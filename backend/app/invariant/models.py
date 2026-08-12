@@ -192,6 +192,21 @@ class ActionGateResult(FrozenModel):
     approval: ActionApproval | None = None
 
 
+class ExecutionReceipt(FrozenModel):
+    status: str = Field(min_length=1)
+    plan_id: str = Field(min_length=1)
+    actual_metrics: dict[str, float] = Field(default_factory=dict)
+    occurred_outcomes: tuple[str, ...] = ()
+    protected_entities: dict[str, bool] = Field(default_factory=dict)
+
+
+class ValidationResult(FrozenModel):
+    verdict: Literal["PASS", "BLOCK"]
+    objective_status: dict[str, bool] = Field(default_factory=dict)
+    constraint_status: dict[str, bool] = Field(default_factory=dict)
+    violations: tuple[Violation, ...] = ()
+
+
 class RepairResult(FrozenModel):
     original: DelegationProposal
     repaired: DelegationProposal

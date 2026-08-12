@@ -29,7 +29,10 @@ def workflow_request(
     return WorkflowRequest(
         run_id="run-001",
         goal="Reduce logistics cost by 15% without delaying medical orders.",
-        state={"baseline.medical_delay": 10},
+        state={
+            "baseline.medical_delay": 10,
+            "baseline.logistics_cost": 100,
+        },
     )
 
 
@@ -116,11 +119,12 @@ def run_workflow(
     max_repairs: int = 2,
     action_decision_sink: Callable[[GateVerdict], Awaitable[None]] | None = None,
     agent_nodes: AgentNodes | None = None,
+    apply_plan=None,
 ) -> tuple[WorkflowResult, dict, list]:
     async def run() -> tuple[WorkflowResult, dict, list]:
         tools = LogisticsTools()
         workflow = build_invariant_workflow(
-            {"apply_plan": (tools.apply_plan, ToolRisk.SIDE_EFFECT)},
+            {"apply_plan": (apply_plan or tools.apply_plan, ToolRisk.SIDE_EFFECT)},
             semantic_verifier=semantic_verifier,
             max_llm_calls=max_llm_calls,
             max_repairs=max_repairs,
@@ -160,7 +164,9 @@ def test_adk_graph_repairs_drift_then_executes() -> None:
     assert result.status == "COMPLETED"
     assert result.repair_count == 1
     assert result.llm_call_count == 3
-    assert result.tool_result == {"status": "applied", "plan_id": "plan-safe"}
+    assert result.tool_result["status"] == "applied"
+    assert result.tool_result["actual_metrics"]["logistics_cost"] == 85
+    assert result.validation.verdict == "PASS"
     assert state["repair_count"] == 1
     assert state["llm_call_count"] == 3
     assert [event.actions.route for event in events if event.actions.route] == [
@@ -228,3 +234,95 @@ def test_action_decision_persistence_failure_prevents_side_effect() -> None:
         assert str(error) == "event persistence unavailable"
     else:
         raise AssertionError("workflow executed after decision persistence failure")
+
+
+def test_final_validator_blocks_cost_target_miss() -> None:
+    def apply_plan(plan_id: str):
+        return {
+            "status": "applied",
+            "plan_id": plan_id,
+            "actual_metrics": {"logistics_cost": 90, "delivery_delay": 10},
+            "occurred_outcomes": [],
+            "protected_entities": {"medical_orders": True},
+        }
+
+    result, _, _ = run_workflow(workflow_request(), apply_plan=apply_plan)
+
+    assert result.status == "BLOCKED"
+    assert result.validation.verdict == "BLOCK"
+    assert result.validation.objective_status["OBJ-1"] is False
+
+
+def test_final_validator_blocks_medical_delay_violation() -> None:
+    def apply_plan(plan_id: str):
+        return {
+            "status": "applied",
+            "plan_id": plan_id,
+            "actual_metrics": {"logistics_cost": 85, "delivery_delay": 11},
+            "occurred_outcomes": [],
+            "protected_entities": {"medical_orders": True},
+        }
+
+    result, _, _ = run_workflow(workflow_request(), apply_plan=apply_plan)
+
+    assert result.status == "BLOCKED"
+    assert result.validation.constraint_status["MEDICAL_SLA"] is False
+
+
+def test_final_validator_blocks_missing_protected_entity_evidence() -> None:
+    def apply_plan(plan_id: str):
+        return {
+            "status": "applied",
+            "plan_id": plan_id,
+            "actual_metrics": {"logistics_cost": 85, "delivery_delay": 10},
+            "occurred_outcomes": [],
+            "protected_entities": {},
+        }
+
+    result, _, _ = run_workflow(workflow_request(), apply_plan=apply_plan)
+
+    assert result.status == "BLOCKED"
+    assert result.violations[-1].reference_id == "medical_orders"
+
+
+def test_final_validator_blocks_forbidden_outcome() -> None:
+    def apply_plan(plan_id: str):
+        return {
+            "status": "applied",
+            "plan_id": plan_id,
+            "actual_metrics": {"logistics_cost": 85, "delivery_delay": 10},
+            "occurred_outcomes": ["deprioritize_medical_orders"],
+            "protected_entities": {"medical_orders": True},
+        }
+
+    result, _, _ = run_workflow(workflow_request(), apply_plan=apply_plan)
+
+    assert result.status == "BLOCKED"
+    assert any(
+        violation.reference_id == "deprioritize_medical_orders"
+        for violation in result.violations
+    )
+
+
+def test_budget_blocks_worker_before_call() -> None:
+    called = False
+    nodes = fake_agent_nodes()
+
+    def worker_agent(node_input):
+        nonlocal called
+        called = True
+        return nodes.worker(node_input)
+
+    limited_nodes = AgentNodes(nodes.intent_compiler, nodes.planner, worker_agent)
+
+    try:
+        run_workflow(
+            workflow_request(),
+            max_llm_calls=2,
+            agent_nodes=limited_nodes,
+        )
+    except RuntimeError as error:
+        assert "LLM call budget exhausted" in str(error)
+    else:
+        raise AssertionError("workflow exceeded budget")
+    assert called is False
