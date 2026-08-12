@@ -524,8 +524,21 @@ def _normalize_intent_candidate(
         objectives.append(item)
     normalized["objectives"] = objectives
     constraints = []
+    constraint_operators = {
+        "less_than_or_equal": "less_than_or_equal",
+        "less_than_or_equals": "less_than_or_equal",
+        "at_most": "less_than_or_equal",
+        "greater_than_or_equal": "greater_than_or_equal",
+        "greater_than_or_equals": "greater_than_or_equal",
+        "at_least": "greater_than_or_equal",
+        "equal": "equal",
+        "equals": "equal",
+    }
     for constraint in candidate.get("hard_constraints", []):
         item = dict(constraint)
+        operator = constraint_operators.get(str(item.get("operator", "")).casefold())
+        if operator:
+            item["operator"] = operator
         metric = item.get("metric")
         baseline_matches = [
             key for key in state if key.rsplit(".", 1)[-1] == metric

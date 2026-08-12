@@ -160,6 +160,34 @@ def test_compiler_canonicalizes_reduction_operator_aliases() -> None:
         assert grounded["objectives"][0]["operator"] == "decrease_by"
 
 
+def test_compiler_canonicalizes_constraint_operator_aliases() -> None:
+    for operator, expected in (
+        ("equals", "equal"),
+        ("less_than_or_equals", "less_than_or_equal"),
+        ("at_most", "less_than_or_equal"),
+        ("greater_than_or_equals", "greater_than_or_equal"),
+        ("at_least", "greater_than_or_equal"),
+    ):
+        grounded = _ground_constraint_references(
+            {
+                "objectives": [],
+                "hard_constraints": [
+                    {
+                        "id": "hc_1",
+                        "subject": "medical_orders",
+                        "metric": "delivery_delay",
+                        "operator": operator,
+                        "value": 10,
+                        "source_span": "without delaying medical orders",
+                    }
+                ],
+            },
+            {"baseline.delivery_delay": 10},
+        )
+
+        assert grounded["hard_constraints"][0]["operator"] == expected
+
+
 def fake_agent_nodes(
     *,
     contract=None,
