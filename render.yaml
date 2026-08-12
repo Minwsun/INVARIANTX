@@ -23,7 +23,6 @@ services:
   - type: web
     name: invariantx-web
     runtime: static
-    plan: free
     rootDir: frontend
     buildCommand: npm ci && npm run build
     staticPublishPath: ./out
