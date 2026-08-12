@@ -58,3 +58,6 @@ class InMemoryStore:
 
     async def list_events(self, run_id: str) -> list[InvariantEvent]:
         return list(self._events.get(run_id, []))
+
+    async def ready(self) -> bool:
+        return True

@@ -17,6 +17,18 @@ class ConstraintOperator(StrEnum):
     EQUAL = "equal"
 
 
+class ObjectiveOperator(StrEnum):
+    DECREASE_BY = "decrease_by"
+    LESS_THAN_OR_EQUAL = "less_than_or_equal"
+    GREATER_THAN_OR_EQUAL = "greater_than_or_equal"
+    EQUAL = "equal"
+
+
+class Unit(StrEnum):
+    RATIO = "ratio"
+    PERCENT = "percent"
+
+
 class DriftType(StrEnum):
     OMISSION = "OMISSION"
     CONTRADICTION = "CONTRADICTION"
@@ -44,14 +56,9 @@ class ToolRisk(StrEnum):
 class Objective(FrozenModel):
     id: str = Field(min_length=1)
     metric: str = Field(min_length=1)
-    operator: Literal[
-        "decrease_by",
-        "less_than_or_equal",
-        "greater_than_or_equal",
-        "equal",
-    ]
+    operator: ObjectiveOperator
     target: float
-    unit: Literal["ratio", "percent"]
+    unit: Unit
     reference: str = Field(min_length=1)
     source_span: str = Field(min_length=1)
 
@@ -132,6 +139,35 @@ class IntentContractCandidate(FrozenModel):
         if len(ids) != len(set(ids)):
             raise ValueError("objective and constraint ids must be unique")
         return self
+
+
+class RawObjective(FrozenModel):
+    id: str = Field(min_length=1)
+    metric: str = Field(min_length=1)
+    operator: str = Field(min_length=1)
+    target: float
+    unit: str = Field(min_length=1)
+    reference: str = Field(min_length=1)
+    source_span: str = Field(min_length=1)
+
+
+class RawConstraint(FrozenModel):
+    id: str = Field(min_length=1)
+    subject: str = Field(min_length=1)
+    metric: str = Field(min_length=1)
+    operator: str = Field(min_length=1)
+    value: float | None = None
+    value_ref: str | None = None
+    source_span: str = Field(min_length=1)
+
+
+class RawIntentContractCandidate(FrozenModel):
+    schema_version: Literal["1.0"] = "1.0"
+    objectives: tuple[RawObjective, ...] = Field(min_length=1)
+    hard_constraints: tuple[RawConstraint, ...] = ()
+    protected_entities: tuple[str, ...] = ()
+    forbidden_outcomes: tuple[str, ...] = ()
+    semantic_constraints: tuple[SemanticConstraint, ...] = ()
 
 
 class ConstraintClaim(FrozenModel):

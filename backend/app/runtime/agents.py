@@ -10,7 +10,7 @@ from google.genai import types
 from app.invariant.models import (
     ActionProposal,
     DelegationProposal,
-    IntentContractCandidate,
+    RawIntentContractCandidate,
 )
 
 DEFAULT_MODEL = "gemini-3.5-flash-lite"
@@ -116,7 +116,7 @@ def build_agent_nodes(model: str = DEFAULT_MODEL) -> AgentNodes:
                 "and forbidden outcomes. Use deterministic metric names from the "
                 "provided domain vocabulary. Do not invent permissions or prose."
             ),
-            output_schema=gemini_schema(IntentContractCandidate),
+            output_schema=gemini_schema(RawIntentContractCandidate),
             generate_content_config=config(800),
             after_model_callback=telemetry("intent_compiler"),
         ),

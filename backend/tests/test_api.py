@@ -222,3 +222,69 @@ def test_cors_allows_only_matching_render_frontend(monkeypatch) -> None:
         "https://invariantx-web.onrender.com"
     )
     assert "access-control-allow-origin" not in denied.headers
+
+
+def test_ready_reports_configured_runtime(monkeypatch) -> None:
+    async def run():
+        monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+        app = create_app(RunService(agent_nodes=fake_agent_nodes()))
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            return await client.get("/ready")
+
+    response = asyncio.run(run())
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "ready": True,
+        "runtime": True,
+        "gemini": True,
+        "firestore": True,
+        "model": "gemini-3.5-flash-lite",
+    }
+
+
+def test_ready_fails_without_gemini(monkeypatch) -> None:
+    async def run():
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        service = RunService()
+        app = create_app(service)
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            return await client.get("/ready")
+
+    response = asyncio.run(run())
+
+    assert response.status_code == 503
+    assert response.json()["gemini"] is False
+
+
+def test_sse_query_cursor_replays_after_event() -> None:
+    async def run():
+        service = RunService(agent_nodes=fake_agent_nodes())
+        app = create_app(service)
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            created = await client.post(
+                "/runs",
+                json={"goal": "Reduce cost without delaying medical orders"},
+            )
+            run_id = created.json()["run_id"]
+            await wait_for_terminal(client, run_id)
+            events = await service.journal.list(run_id)
+            replay = await client.get(
+                f"/runs/{run_id}/events",
+                params={"after_event_id": events[2].event_id},
+            )
+            return events, replay.text
+
+    events, replay = asyncio.run(run())
+
+    assert events[2].event_id not in replay
+    assert events[3].event_id in replay

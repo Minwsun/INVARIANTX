@@ -110,3 +110,5 @@ Provision Firestore and a least-privilege service account:
 ```
 
 Create a Render Blueprint from this repository, then enter `GOOGLE_CLOUD_PROJECT`, `GEMINI_API_KEY`, and the generated service-account JSON when prompted. Deployment details: `deploy/README.md`. Security policy: `SECURITY.md`. Demo script: `docs/DEMO.md`.
+
+Core v1 production evidence is recorded in `docs/proof/core-v1.json`. The proof uses real Gemini, Google ADK Graph Workflow, Render, Firestore persistence, deliberate constraint omission, deterministic repair, tool execution, and final validation. The logistics execution receipt remains simulator-controlled for the demo; a production domain adapter must derive receipts from external state.

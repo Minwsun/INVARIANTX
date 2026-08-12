@@ -22,6 +22,7 @@ from app.invariant.models import (
     GateStatus,
     IntentContract,
     IntentContractCandidate,
+    RawIntentContractCandidate,
     Permission,
     ToolRisk,
     ValidationResult,
@@ -115,8 +116,14 @@ def build_invariant_workflow(
         node_input: Any,
     ) -> WorkflowPacket:
         request = WorkflowRequest.model_validate(ctx.state["workflow_request"])
+        raw_candidate = RawIntentContractCandidate.model_validate(
+            _json_compatible(node_input)
+        )
         candidate = IntentContractCandidate.model_validate(
-            _ground_constraint_references(node_input, request.state)
+            _normalize_intent_candidate(
+                raw_candidate.model_dump(mode="json"),
+                request.state,
+            )
         )
         contract = IntentContract(
             id=f"intent_{request.run_id}",
@@ -495,7 +502,7 @@ def build_invariant_workflow(
     )
 
 
-def _ground_constraint_references(
+def _normalize_intent_candidate(
     candidate: Any,
     state: dict[str, float],
 ) -> Any:
@@ -550,6 +557,19 @@ def _ground_constraint_references(
         constraints.append(item)
     normalized["hard_constraints"] = constraints
     return normalized
+
+
+_ground_constraint_references = _normalize_intent_candidate
+
+
+def _json_compatible(value: Any) -> Any:
+    if hasattr(value, "model_dump"):
+        return value.model_dump(mode="json")
+    if isinstance(value, dict):
+        return {key: _json_compatible(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_compatible(item) for item in value]
+    return value
 
 
 def _validate_execution(packet: WorkflowPacket) -> ValidationResult:

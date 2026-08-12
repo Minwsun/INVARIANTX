@@ -2,26 +2,26 @@
 
 ## Product
 
-- [ ] Public GitHub repository points to the final commit.
-- [ ] Render frontend URL loads without authentication.
-- [ ] Backend `/health` returns success.
-- [ ] Demo run completes drift, repair, recheck, tool execution, validation.
-- [ ] Firestore persists runs, contracts, and events.
-- [ ] Normal run stays within 2-3 LLM calls.
-- [ ] Drift run stays within 4-5 LLM calls.
+- [x] Public GitHub repository contains the Core v1 proof commit.
+- [x] Render frontend URL loads without authentication.
+- [x] Backend `/health` returns success.
+- [x] Demo run completes drift, repair, recheck, tool execution, validation.
+- [x] Firestore persists runs, contracts, and events.
+- [x] Normal run stays within 2-3 LLM calls.
+- [x] Drift run uses 3 LLM calls.
 
 ## Required Google Stack
 
-- [ ] Gemini 3.5+ is visible in code and demo evidence.
-- [ ] Google ADK 2.x Graph Workflow is visible in architecture and code.
-- [ ] Render Blueprint deployment is live.
-- [ ] Firestore persistence is live.
+- [x] Gemini 3.5+ is visible in code and demo evidence.
+- [x] Google ADK 2.x Graph Workflow is visible in architecture and code.
+- [x] Render Blueprint deployment is live.
+- [x] Firestore persistence is live.
 
 ## Evidence
 
 - [ ] README includes North Star, architecture, setup, evaluation, deployment.
 - [ ] Architecture diagram is readable on GitHub.
-- [ ] Evaluation baseline is committed.
+- [x] Evaluation baseline is committed.
 - [ ] CI passes backend, frontend, evaluation, and static export checks.
 - [ ] Demo video shows original intent, drift detection, repair, and completion.
 - [ ] Submission text clearly says logistics is a demo use case.
@@ -53,4 +53,4 @@ npm run build
 - [ ] Run demo once from a clean browser session.
 - [ ] Confirm SSE reconnect/replay does not duplicate visible events.
 - [ ] Confirm failed or blocked actions never appear as executed.
-- [ ] Tag or record the submitted commit SHA.
+- [x] Core v1 commit SHA and run ID are recorded in `docs/proof/core-v1.json`.

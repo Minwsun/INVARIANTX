@@ -1,6 +1,6 @@
 import os
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.runs import create_runs_router
@@ -29,6 +29,26 @@ def create_app(service: RunService | None = None) -> FastAPI:
     @app.get("/health")
     async def health():
         return {"status": "ok"}
+
+    @app.get("/ready")
+    async def ready(response: Response):
+        runtime = app.state.run_service is not None
+        gemini = bool(os.getenv("GEMINI_API_KEY") or app.state.run_service.agent_nodes)
+        firestore = False
+        try:
+            firestore = await app.state.run_service.store.ready()
+        except Exception:
+            firestore = False
+        ready_status = runtime and gemini and firestore
+        if not ready_status:
+            response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        return {
+            "ready": ready_status,
+            "runtime": runtime,
+            "gemini": gemini,
+            "firestore": firestore,
+            "model": "gemini-3.5-flash-lite",
+        }
 
     return app
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 from typing import Any
@@ -21,6 +22,7 @@ class FirestoreStore:
         project: str | None = None,
     ) -> None:
         self._client = client or _create_client(project)
+        self._event_locks: dict[str, asyncio.Lock] = {}
 
     async def save_run(self, run_id: str, snapshot: dict[str, Any]) -> None:
         await self._client.collection("runs").document(run_id).set(
@@ -68,7 +70,7 @@ class FirestoreStore:
         payload: dict[str, Any],
     ) -> InvariantEvent:
         run_reference = self._client.collection("runs").document(run_id)
-        transaction = self._client.transaction()
+        transaction = self._client.transaction(max_attempts=20)
 
         @async_transactional
         async def allocate(current_transaction):
@@ -97,7 +99,9 @@ class FirestoreStore:
             current_transaction.set(run_reference, update, merge=True)
             return event
 
-        return await allocate(transaction)
+        lock = self._event_locks.setdefault(run_id, asyncio.Lock())
+        async with lock:
+            return await allocate(transaction)
 
     async def list_events(self, run_id: str) -> list[InvariantEvent]:
         query = (
@@ -110,6 +114,10 @@ class FirestoreStore:
             InvariantEvent.model_validate(snapshot.to_dict())
             async for snapshot in query.stream()
         ]
+
+    async def ready(self) -> bool:
+        await self._client.collection("runs").limit(1).get()
+        return True
 
 
 def _create_client(project: str | None) -> AsyncClient:

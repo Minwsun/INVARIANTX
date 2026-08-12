@@ -23,8 +23,10 @@ const eventTypes = [
   "RUN_CANCELLED",
   "RUN_COMPLETED",
   "RUN_FAILED",
+  "INTENT_COMPILED",
   "CONTRACT_REGISTERED",
   "TASK_PROPOSED",
+  "DEMO_DRIFT_INJECTED",
   "ACTION_PROPOSED",
   "GATE_PASSED",
   "DRIFT_DETECTED",
@@ -59,6 +61,7 @@ type RunSnapshot = {
   status: string;
   repair_count: number;
   llm_call_count: number;
+  scenario?: string;
   result?: {
     model_calls?: Array<{ input_tokens: number; output_tokens: number }>;
   };
@@ -110,8 +113,23 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const sourceRef = useRef<EventSource | null>(null);
+  const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const cursorRef = useRef<string | null>(null);
+  const failuresRef = useRef(0);
 
-  useEffect(() => () => sourceRef.current?.close(), []);
+  useEffect(() => () => disconnectEvents(), []);
+
+  useEffect(() => {
+    const runId = new URLSearchParams(window.location.search).get("run_id");
+    if (!runId) return;
+    void refreshRun(runId)
+      .then(() => connectEvents(runId))
+      .catch((reason) => setError(reason instanceof Error ? reason.message : "Unable to load run"))
+      .finally(() => setLoading(false));
+    // Deep-link hydration runs once; reconnect owns subsequent lifecycle updates.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const activeActors = useMemo(
     () => new Set(events.map((event) => event.actor)),
@@ -147,13 +165,19 @@ export default function Home() {
       fetch(`${API_BASE}/runs/${runId}`),
       fetch(`${API_BASE}/runs/${runId}/contract`),
     ]);
-    if (runResponse.ok) setRun(await runResponse.json());
+    if (!runResponse.ok) throw new Error("Run not found");
+    const snapshot = await runResponse.json() as RunSnapshot;
+    setRun(snapshot);
     if (contractResponse.ok) setContract(await contractResponse.json());
+    return snapshot;
   }
 
   function connectEvents(runId: string) {
     sourceRef.current?.close();
-    const source = new EventSource(`${API_BASE}/runs/${runId}/events`);
+    if (reconnectRef.current) clearTimeout(reconnectRef.current);
+    const cursor = cursorRef.current;
+    const query = cursor ? `?after_event_id=${encodeURIComponent(cursor)}` : "";
+    const source = new EventSource(`${API_BASE}/runs/${runId}/events${query}`);
     sourceRef.current = source;
 
     const receive = (message: MessageEvent<string>) => {
@@ -163,17 +187,43 @@ export default function Home() {
           ? current
           : [...current, event],
       );
+      cursorRef.current = event.event_id;
+      failuresRef.current = 0;
+      setError("");
       if (["RUN_COMPLETED", "RUN_FAILED", "RUN_CANCELLED"].includes(event.type)) {
-        source.close();
+        disconnectEvents();
         void refreshRun(runId);
       }
     };
 
     eventTypes.forEach((type) => source.addEventListener(type, receive as EventListener));
     source.onerror = () => {
-      if (source.readyState === EventSource.CLOSED) return;
-      setError("Event stream disconnected. Browser retry is active.");
+      source.close();
+      failuresRef.current += 1;
+      setError("Event stream disconnected. Recovering from persisted events.");
+      if (failuresRef.current >= 3 && !pollingRef.current) {
+        pollingRef.current = setInterval(() => {
+          void refreshRun(runId).then((snapshot) => {
+            if (["COMPLETED", "BLOCKED", "FAILED", "CANCELLED"].includes(snapshot.status)) {
+              disconnectEvents();
+            }
+          });
+        }, 5000);
+      }
+      const delay = [1000, 2000, 4000, 8000, 15000][
+        Math.min(failuresRef.current - 1, 4)
+      ];
+      reconnectRef.current = setTimeout(() => connectEvents(runId), delay);
     };
+  }
+
+  function disconnectEvents() {
+    sourceRef.current?.close();
+    sourceRef.current = null;
+    if (reconnectRef.current) clearTimeout(reconnectRef.current);
+    reconnectRef.current = null;
+    if (pollingRef.current) clearInterval(pollingRef.current);
+    pollingRef.current = null;
   }
 
   async function startRun(event: FormEvent<HTMLFormElement>) {
@@ -183,6 +233,9 @@ export default function Home() {
     setEvents([]);
     setContract(null);
     setRun(null);
+    disconnectEvents();
+    cursorRef.current = null;
+    failuresRef.current = 0;
     try {
       const response = await fetch(`${API_BASE}/runs`, {
         method: "POST",
@@ -192,6 +245,7 @@ export default function Home() {
       const body = await response.json();
       if (!response.ok) throw new Error(body.detail ?? "Unable to create run");
       setRun(body);
+      window.history.replaceState(null, "", `?run_id=${encodeURIComponent(body.run_id)}`);
       await refreshRun(body.run_id);
       connectEvents(body.run_id);
     } catch (reason) {

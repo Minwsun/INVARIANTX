@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import APIRouter, Header, HTTPException, Response, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
@@ -56,21 +58,38 @@ def create_runs_router(service: RunService) -> APIRouter:
     async def stream_events(
         run_id: str,
         last_event_id: str | None = Header(default=None, alias="Last-Event-ID"),
+        after_event_id: str | None = None,
     ):
+        cursor = last_event_id or after_event_id
         try:
             await service.get(run_id)
-            if last_event_id is not None:
-                await service.journal.list(run_id, last_event_id)
+            if cursor is not None:
+                await service.journal.list(run_id, cursor)
         except KeyError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
 
         async def stream():
-            async for event in service.journal.stream(run_id, last_event_id):
-                yield (
-                    f"id: {event.event_id}\n"
-                    f"event: {event.type.value}\n"
-                    f"data: {event.model_dump_json()}\n\n"
-                )
+            iterator = service.journal.stream(run_id, cursor).__aiter__()
+            pending = asyncio.create_task(iterator.__anext__())
+            try:
+                while True:
+                    done, _ = await asyncio.wait({pending}, timeout=20)
+                    if not done:
+                        yield ": heartbeat\n\n"
+                        continue
+                    try:
+                        event = pending.result()
+                    except StopAsyncIteration:
+                        return
+                    yield (
+                        f"id: {event.event_id}\n"
+                        f"event: {event.type.value}\n"
+                        f"data: {event.model_dump_json()}\n\n"
+                    )
+                    pending = asyncio.create_task(iterator.__anext__())
+            finally:
+                if not pending.done():
+                    pending.cancel()
 
         return StreamingResponse(
             stream(),
