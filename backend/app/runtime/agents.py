@@ -44,9 +44,9 @@ def build_agent_nodes(model: str = DEFAULT_MODEL) -> AgentNodes:
     config = types.GenerateContentConfig(temperature=0, max_output_tokens=150)
 
     def telemetry(agent_name: str):
-        def capture(ctx, response: LlmResponse):
-            usage = response.usage_metadata
-            ctx.state[f"model_call.{agent_name}"] = {
+        def capture(callback_context, llm_response: LlmResponse):
+            usage = llm_response.usage_metadata
+            callback_context.state[f"model_call.{agent_name}"] = {
                 "model": model,
                 "input_tokens": getattr(usage, "prompt_token_count", 0) or 0,
                 "output_tokens": getattr(usage, "candidates_token_count", 0) or 0,
