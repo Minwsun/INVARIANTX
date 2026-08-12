@@ -10,8 +10,11 @@ import {
   ReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import { normalizeApiBase } from "@/lib/api-base.mjs";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+const API_BASE = normalizeApiBase(
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? process.env.NEXT_PUBLIC_API_HOST,
+);
 
 const eventTypes = [
   "RUN_CREATED",

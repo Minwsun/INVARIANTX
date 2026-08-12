@@ -37,7 +37,7 @@ flowchart TD
 - **Tools:** ADK Function Tools; every side effect passes the action gate.
 - **State:** ADK Session State for small dynamic data; Firestore for persistence.
 - **UI:** Next.js, TypeScript, XYFlow, REST, SSE.
-- **Delivery:** Docker, Cloud Run, GitHub Actions.
+- **Delivery:** Docker, Render Blueprint, GitHub Actions.
 - **Budget:** Maximum five LLM calls per run.
 
 The frozen contract lives in `TECHNOLOGY-CONTRACT.md`.
@@ -48,7 +48,7 @@ The frozen contract lives in `TECHNOLOGY-CONTRACT.md`.
 backend/     FastAPI, ADK workflow, gates, evaluation
 frontend/    Next.js dashboard and SSE client
 benchmarks/  Reproducible safety baseline
-deploy/      Cloud Run deployment script
+deploy/      Render deployment and smoke-test guide
 docs/        Demo and submission guidance
 ```
 
@@ -101,16 +101,12 @@ The evaluation suite covers valid delegation, omission, contradiction, weakening
 
 ## Deploy
 
-Provision idempotent Google Cloud infrastructure, then deploy:
+Provision Firestore and a least-privilege service account:
 
 ```powershell
 .\scripts\bootstrap-gcp.ps1 `
   -ProjectId "YOUR_PROJECT_ID" `
-  -BillingAccount "XXXXXX-XXXXXX-XXXXXX"
-
-.\deploy\cloudrun.ps1 `
-  -ProjectId "YOUR_PROJECT_ID" `
-  -BillingAccount "XXXXXX-XXXXXX-XXXXXX"
+  -CreateKey
 ```
 
-Deployment details: `deploy/README.md`. Security policy: `SECURITY.md`. Demo script: `docs/DEMO.md`.
+Create a Render Blueprint from this repository, then enter `GOOGLE_CLOUD_PROJECT`, `GEMINI_API_KEY`, and the generated service-account JSON when prompted. Deployment details: `deploy/README.md`. Security policy: `SECURITY.md`. Demo script: `docs/DEMO.md`.

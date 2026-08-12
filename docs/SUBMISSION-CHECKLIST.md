@@ -3,7 +3,7 @@
 ## Product
 
 - [ ] Public GitHub repository points to the final commit.
-- [ ] Cloud Run frontend URL loads without authentication.
+- [ ] Render frontend URL loads without authentication.
 - [ ] Backend `/health` returns success.
 - [ ] Demo run completes drift, repair, recheck, tool execution, validation.
 - [ ] Firestore persists runs, contracts, and events.
@@ -14,7 +14,7 @@
 
 - [ ] Gemini 3.5+ is visible in code and demo evidence.
 - [ ] Google ADK 2.x Graph Workflow is visible in architecture and code.
-- [ ] Cloud Run deployment is live.
+- [ ] Render Blueprint deployment is live.
 - [ ] Firestore persistence is live.
 
 ## Evidence
@@ -31,8 +31,8 @@
 
 - [ ] No `.env`, API key, service-account JSON, or credential is committed.
 - [ ] GitHub Actions uses Workload Identity Federation.
-- [ ] Secret Manager contains `gemini-api-key`.
-- [ ] Cloud Run service account uses least privilege.
+- [ ] Render contains `GEMINI_API_KEY` and `GCP_SERVICE_ACCOUNT_JSON` secrets.
+- [ ] Firestore service account has only `roles/datastore.user`.
 - [ ] Backend CORS contains only the production frontend origin.
 - [ ] Firestore client rules deny direct browser access.
 

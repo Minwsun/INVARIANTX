@@ -1,9 +1,13 @@
 import asyncio
+import json
+
+import pytest
 
 from app.domain.logistics import medical_logistics_contract
 from app.runtime.events import EventType, RunStatus
 from app.runtime.service import RunService
 from app.storage.memory import InMemoryStore
+from app.storage.firestore import _create_client
 from tests.test_api import fake_agent_nodes
 
 
@@ -52,3 +56,28 @@ def test_contract_store_is_append_only() -> None:
         raise AssertionError("store overwrote an existing contract version")
 
     asyncio.run(run())
+
+
+def test_render_firestore_requires_service_account_json(monkeypatch) -> None:
+    monkeypatch.setenv("RENDER", "true")
+    monkeypatch.delenv("GCP_SERVICE_ACCOUNT_JSON", raising=False)
+
+    with pytest.raises(ValueError, match="GCP_SERVICE_ACCOUNT_JSON"):
+        _create_client("project-1")
+
+
+def test_firestore_rejects_invalid_service_account_json(monkeypatch) -> None:
+    monkeypatch.setenv("GCP_SERVICE_ACCOUNT_JSON", "not-json")
+
+    with pytest.raises(ValueError, match="valid JSON"):
+        _create_client("project-1")
+
+
+def test_firestore_rejects_service_account_project_mismatch(monkeypatch) -> None:
+    monkeypatch.setenv(
+        "GCP_SERVICE_ACCOUNT_JSON",
+        json.dumps({"project_id": "project-2"}),
+    )
+
+    with pytest.raises(ValueError, match="does not match"):
+        _create_client("project-1")

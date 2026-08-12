@@ -143,3 +143,31 @@ def test_cors_allows_local_dashboard() -> None:
 
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
+
+
+def test_cors_allows_only_matching_render_frontend(monkeypatch) -> None:
+    async def run(origin: str):
+        monkeypatch.setenv(
+            "CORS_ORIGIN_REGEX",
+            r"^https://invariantx-web(?:-[a-z0-9-]+)?\.onrender\.com$",
+        )
+        app = create_app(RunService(agent_nodes=fake_agent_nodes()))
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            return await client.options(
+                "/runs",
+                headers={
+                    "Origin": origin,
+                    "Access-Control-Request-Method": "POST",
+                },
+            )
+
+    allowed = asyncio.run(run("https://invariantx-web.onrender.com"))
+    denied = asyncio.run(run("https://attacker.onrender.com"))
+
+    assert allowed.headers["access-control-allow-origin"] == (
+        "https://invariantx-web.onrender.com"
+    )
+    assert "access-control-allow-origin" not in denied.headers

@@ -10,15 +10,16 @@ INVARIANTX is an experimental intent-integrity runtime. It reduces agent drift; 
 - Every side-effecting tool call must pass the deterministic action gate.
 - Semantic model verdicts never bypass deterministic constraints.
 - Firestore is server-only; browser rules deny direct access.
-- Gemini credentials use environment variables or Google Secret Manager.
-- Production access uses Google Cloud service identities and least privilege.
+- Gemini and Google Cloud credentials use Render secrets.
+- Render authenticates to Firestore with a least-privilege service account.
 - Typed events form the audit trail; secrets and raw credentials must never enter events.
 
 ## Deployment Requirements
 
 - Never commit `.env` files, API keys, service-account JSON, or generated credentials.
 - Restrict backend CORS to the deployed frontend origin.
-- Grant the Cloud Run service account only required Firestore and Secret Manager roles.
+- Grant the Render service account only `roles/datastore.user`.
+- Rotate and revoke service-account keys after exposure or team changes.
 - Keep `apply_plan` and future destructive tools gated and idempotent where possible.
 - Review Firestore retention and personal-data handling before real workloads.
 

@@ -18,6 +18,7 @@ def create_app(service: RunService | None = None) -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,
+        allow_origin_regex=os.getenv("CORS_ORIGIN_REGEX"),
         allow_credentials=False,
         allow_methods=["GET", "POST"],
         allow_headers=["Content-Type", "Last-Event-ID"],

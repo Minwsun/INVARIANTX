@@ -1,24 +1,37 @@
-# Cloud Run Deployment
+# Render Deployment
 
-## Prerequisites
+INVARIANTX deploys its backend and frontend through the root `render.yaml` Blueprint. Firestore remains the Google Cloud infrastructure service.
 
-- Google Cloud CLI authenticated with permission to manage Cloud Run, Artifact Registry, Firestore, APIs, and service accounts.
-- Firestore database created in Native mode.
-- Secret Manager secret `gemini-api-key` containing the Gemini API key.
-- Cloud Run runtime service account granted Firestore access and Secret Manager Secret Accessor.
+## 1. Prepare Firestore
 
-## Deploy
+Use an existing Google Cloud project with Firestore access:
 
 ```powershell
 .\scripts\bootstrap-gcp.ps1 `
   -ProjectId "YOUR_PROJECT_ID" `
-  -BillingAccount "XXXXXX-XXXXXX-XXXXXX"
-
-.\deploy\cloudrun.ps1 `
-  -ProjectId "YOUR_PROJECT_ID" `
-  -BillingAccount "XXXXXX-XXXXXX-XXXXXX"
+  -CreateKey
 ```
 
-The script builds and deploys backend first, injects its URL into the frontend build, deploys frontend, then restricts backend CORS to the frontend URL.
+The command creates/reuses Firestore Native mode, creates `invariantx-render`, grants only `roles/datastore.user`, and writes a key under `.secrets/`. Never commit that directory.
 
-MVP uses `--max-instances 1` because live SSE wake-ups use an in-process condition. Firestore replay remains persistent. Multi-instance live fan-out requires a future shared notification service.
+## 2. Create Render Blueprint
+
+1. Push the repository to GitHub.
+2. In Render, choose **New → Blueprint**.
+3. Select `Minwsun/INVARIANTX`.
+4. Render detects `render.yaml` and creates `invariantx-api` plus `invariantx-web` in Singapore.
+5. Enter the prompted values:
+   - `GOOGLE_CLOUD_PROJECT`: the project ID.
+   - `GEMINI_API_KEY`: Gemini API key.
+   - `GCP_SERVICE_ACCOUNT_JSON`: the complete JSON content from `.secrets/invariantx-render.json`.
+
+The frontend receives the backend hostname through a Blueprint service reference. The backend CORS regex accepts only the generated `invariantx-web` Render hostname.
+
+## 3. Verify
+
+```powershell
+.\scripts\verify-gcp.ps1 -ProjectId "YOUR_PROJECT_ID"
+.\deploy\smoke-test.ps1 -BackendUrl "https://invariantx-api.onrender.com"
+```
+
+Render Free services may cold-start. The smoke test allows 120 seconds by default.

@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import json
+import os
 from typing import Any
 
 from google.api_core.exceptions import AlreadyExists
+from google.oauth2 import service_account
 from google.cloud.firestore_v1 import AsyncClient
 from google.cloud.firestore_v1.async_transaction import async_transactional
 
@@ -17,7 +20,7 @@ class FirestoreStore:
         *,
         project: str | None = None,
     ) -> None:
-        self._client = client or AsyncClient(project=project)
+        self._client = client or _create_client(project)
 
     async def save_run(self, run_id: str, snapshot: dict[str, Any]) -> None:
         await self._client.collection("runs").document(run_id).set(
@@ -107,3 +110,20 @@ class FirestoreStore:
             InvariantEvent.model_validate(snapshot.to_dict())
             async for snapshot in query.stream()
         ]
+
+
+def _create_client(project: str | None) -> AsyncClient:
+    raw_credentials = os.getenv("GCP_SERVICE_ACCOUNT_JSON")
+    if not raw_credentials:
+        if os.getenv("RENDER"):
+            raise ValueError("GCP_SERVICE_ACCOUNT_JSON is required on Render")
+        return AsyncClient(project=project)
+    try:
+        info = json.loads(raw_credentials)
+    except json.JSONDecodeError as error:
+        raise ValueError("GCP_SERVICE_ACCOUNT_JSON must contain valid JSON") from error
+    credential_project = info.get("project_id")
+    if project and credential_project != project:
+        raise ValueError("service account project_id does not match GOOGLE_CLOUD_PROJECT")
+    credentials = service_account.Credentials.from_service_account_info(info)
+    return AsyncClient(project=project or credential_project, credentials=credentials)

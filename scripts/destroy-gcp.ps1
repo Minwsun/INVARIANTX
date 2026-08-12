@@ -1,18 +1,20 @@
 param(
     [Parameter(Mandatory = $true)][string]$ProjectId,
-    [string]$ConfirmProjectId,
-    [switch]$DeleteProject
+    [string]$ServiceAccount = "invariantx-render",
+    [string]$ConfirmServiceAccount,
+    [switch]$DeleteServiceAccount
 )
 
 $ErrorActionPreference = "Stop"
+$serviceAccountEmail = "$ServiceAccount@$ProjectId.iam.gserviceaccount.com"
 
-if (-not $DeleteProject) {
-    Write-Output "Dry run only. Project would be deleted: $ProjectId"
-    Write-Output "Rerun with -DeleteProject -ConfirmProjectId '$ProjectId'"
+if (-not $DeleteServiceAccount) {
+    Write-Output "Dry run only. Service account would be deleted: $serviceAccountEmail"
+    Write-Output "The project and Firestore database are never deleted by this script."
     exit 0
 }
-if ($ConfirmProjectId -cne $ProjectId) {
-    throw "ConfirmProjectId must exactly match ProjectId"
+if ($ConfirmServiceAccount -cne $serviceAccountEmail) {
+    throw "ConfirmServiceAccount must exactly match $serviceAccountEmail"
 }
 
-gcloud projects delete $ProjectId --quiet
+gcloud iam service-accounts delete $serviceAccountEmail --quiet

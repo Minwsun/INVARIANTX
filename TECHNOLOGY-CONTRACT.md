@@ -1,7 +1,7 @@
-# INVARIANT Technology Contract v1
+# INVARIANT Technology Contract v2
 
 Status: **Frozen**  
-Effective date: **2026-08-11**
+Effective date: **2026-08-12**
 
 ## North Star
 
@@ -28,7 +28,8 @@ INVARIANT is a runtime layer that preserves, verifies, and repairs human intent 
 | Frontend | Next.js + TypeScript |
 | Graph UI | React Flow / XYFlow |
 | Realtime | Server-Sent Events (SSE) |
-| Cloud | Cloud Run |
+| Google Cloud infrastructure | Firestore |
+| Compute hosting | Render Free |
 | Tests | pytest |
 | Deployment | Docker + GitHub |
 
@@ -61,7 +62,7 @@ INVARIANT is a runtime layer that preserves, verifies, and repairs human intent 
 Browser
    |
    v
-Cloud Run
+Render
    |
    +-- FastAPI
    +-- ADK Runtime
@@ -71,7 +72,7 @@ Cloud Run
    +-- Firestore
 ```
 
-The MVP is one deployable backend service plus one frontend. It does not use Kubernetes, Pub/Sub, Redis, SQL databases, vector databases, message brokers, or additional agent frameworks.
+The MVP is one Render backend service plus one Render frontend service. Firestore remains the required Google Cloud infrastructure. It does not use Kubernetes, Pub/Sub, Redis, SQL databases, vector databases, message brokers, or additional agent frameworks.
 
 ## Prohibited Additions
 

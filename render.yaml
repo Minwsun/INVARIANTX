@@ -1,0 +1,34 @@
+services:
+  - type: web
+    name: invariantx-api
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /health
+    envVars:
+      - key: INVARIANT_STORE
+        value: firestore
+      - key: GOOGLE_CLOUD_PROJECT
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GCP_SERVICE_ACCOUNT_JSON
+        sync: false
+      - key: CORS_ORIGIN_REGEX
+        value: ^https://invariantx-web(?:-[a-z0-9-]+)?\.onrender\.com$
+
+  - type: web
+    name: invariantx-web
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
+    envVars:
+      - key: NEXT_PUBLIC_API_HOST
+        fromService:
+          name: invariantx-api
+          type: web
+          property: host

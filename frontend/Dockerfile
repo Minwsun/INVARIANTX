@@ -8,7 +8,9 @@ WORKDIR /app
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
 ARG NEXT_PUBLIC_API_BASE_URL
+ARG NEXT_PUBLIC_API_HOST
 ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
+ENV NEXT_PUBLIC_API_HOST=$NEXT_PUBLIC_API_HOST
 RUN npm run build
 
 FROM node:20-alpine AS runtime

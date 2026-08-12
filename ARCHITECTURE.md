@@ -131,9 +131,10 @@ It consumes REST and SSE only. It contains no contract evaluation, gate, repair,
 
 ## Deployment
 
-- Backend runs as one Docker container on Cloud Run.
+- Backend and frontend run as Docker services on Render.
 - Firestore provides persistence.
 - Gemini calls originate from the backend.
+- Render authenticates to Firestore with a least-privilege service-account credential stored as a Render secret.
 - Structured logs include `run_id`, `event_id`, `contract_id`, and `task_id` when available.
 - Local development may replace Firestore and ADK persistence with in-memory implementations behind the same interfaces.
 
@@ -146,4 +147,3 @@ It consumes REST and SSE only. It contains no contract evaluation, gate, repair,
 - Tool failure: record failure; never report success.
 - Model-call limit: stop optional calls; return safest valid terminal result.
 - Repeated drift: escalate after configured repair limit.
-
