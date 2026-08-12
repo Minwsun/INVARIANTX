@@ -44,9 +44,14 @@ class ToolRisk(StrEnum):
 class Objective(FrozenModel):
     id: str = Field(min_length=1)
     metric: str = Field(min_length=1)
-    operator: str = Field(min_length=1)
+    operator: Literal[
+        "decrease_by",
+        "less_than_or_equal",
+        "greater_than_or_equal",
+        "equal",
+    ]
     target: float
-    unit: str = Field(min_length=1)
+    unit: Literal["ratio", "percent"]
     reference: str = Field(min_length=1)
     source_span: str = Field(min_length=1)
 

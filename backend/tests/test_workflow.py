@@ -132,31 +132,6 @@ def test_compiler_normalizes_delay_metric_alias_from_source_span() -> None:
     assert constraint["value_ref"] == "baseline.delivery_delay"
 
 
-def test_final_validator_accepts_compiler_percent_operator_alias() -> None:
-    contract = medical_logistics_contract().model_copy(
-        update={
-            "objectives": (
-                medical_logistics_contract().objectives[0].model_copy(
-                    update={
-                        "operator": "decrease_by_percent",
-                        "target": 15,
-                        "unit": "percent",
-                        "reference": "baseline.logistics_cost",
-                    }
-                ),
-            )
-        }
-    )
-
-    result, _, _ = run_workflow(
-        workflow_request(),
-        agent_nodes=fake_agent_nodes(contract=contract),
-    )
-
-    assert result.status == "COMPLETED"
-    assert result.validation.verdict == "PASS"
-
-
 def test_compiler_canonicalizes_reduction_operator_aliases() -> None:
     for operator in (
         "decrease_by",

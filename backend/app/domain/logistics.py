@@ -19,7 +19,7 @@ def medical_logistics_contract() -> IntentContract:
             Objective(
                 id="OBJ-1",
                 metric="logistics_cost",
-                operator="decrease_by_at_least",
+                operator="decrease_by",
                 target=0.15,
                 unit="ratio",
                 reference="baseline",
