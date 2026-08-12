@@ -23,6 +23,23 @@ class AgentNodes:
     worker: Any
 
 
+def gemini_schema(model_type: type) -> dict[str, Any]:
+    schema = model_type.model_json_schema()
+
+    def sanitize(value: Any) -> Any:
+        if isinstance(value, dict):
+            return {
+                key: sanitize(item)
+                for key, item in value.items()
+                if key != "additionalProperties"
+            }
+        if isinstance(value, list):
+            return [sanitize(item) for item in value]
+        return value
+
+    return sanitize(schema)
+
+
 def build_agent_nodes(model: str = DEFAULT_MODEL) -> AgentNodes:
     config = types.GenerateContentConfig(temperature=0, max_output_tokens=150)
 
@@ -53,7 +70,7 @@ def build_agent_nodes(model: str = DEFAULT_MODEL) -> AgentNodes:
                 "and forbidden outcomes. Use deterministic metric names from the "
                 "provided domain vocabulary. Do not invent permissions or prose."
             ),
-            output_schema=IntentContractCandidate,
+            output_schema=gemini_schema(IntentContractCandidate),
             generate_content_config=config,
             after_model_callback=telemetry("intent_compiler"),
         ),
@@ -67,7 +84,7 @@ def build_agent_nodes(model: str = DEFAULT_MODEL) -> AgentNodes:
                 "projection. Reference every relevant objective and hard or semantic "
                 "invariant. Do not call tools. Return only the supplied JSON schema."
             ),
-            output_schema=DelegationProposal,
+            output_schema=gemini_schema(DelegationProposal),
             generate_content_config=config,
             after_model_callback=telemetry("planner_agent"),
         ),
@@ -82,7 +99,7 @@ def build_agent_nodes(model: str = DEFAULT_MODEL) -> AgentNodes:
                 "metrics needed by deterministic gates. Do not execute the tool. "
                 "Return only the supplied JSON schema."
             ),
-            output_schema=ActionProposal,
+            output_schema=gemini_schema(ActionProposal),
             generate_content_config=config,
             after_model_callback=telemetry("worker_agent"),
         ),
