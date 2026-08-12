@@ -22,7 +22,7 @@
 - [ ] README includes North Star, architecture, setup, evaluation, deployment.
 - [ ] Architecture diagram is readable on GitHub.
 - [ ] Evaluation baseline is committed.
-- [ ] CI passes backend, frontend, evaluation, and container builds.
+- [ ] CI passes backend, frontend, evaluation, and static export checks.
 - [ ] Demo video shows original intent, drift detection, repair, and completion.
 - [ ] Submission text clearly says logistics is a demo use case.
 - [ ] Screenshots avoid API keys, project secrets, and personal data.

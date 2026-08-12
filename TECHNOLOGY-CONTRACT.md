@@ -31,7 +31,10 @@ INVARIANT is a runtime layer that preserves, verifies, and repairs human intent 
 | Google Cloud infrastructure | Firestore |
 | Compute hosting | Render Free |
 | Tests | pytest |
-| Deployment | Docker + GitHub |
+| Backend runtime | Render Native Python |
+| Frontend hosting | Render Static Site |
+| Deployment | Render Blueprint + GitHub |
+| Container | None |
 
 ## Runtime Rules
 

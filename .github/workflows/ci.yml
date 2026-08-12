@@ -49,15 +49,20 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         env:
-          NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+          NEXT_PUBLIC_API_HOST: invariantx-api.onrender.com
         run: npm run build
+      - name: Verify static export
+        working-directory: frontend
+        run: test -f out/index.html
 
-  containers:
+  deployment-contract:
     runs-on: ubuntu-latest
-    needs: [backend, frontend]
     steps:
       - uses: actions/checkout@v5
-      - name: Build backend image
-        run: docker build -t invariantx-backend:test backend
-      - name: Build frontend image
-        run: docker build --build-arg NEXT_PUBLIC_API_BASE_URL=http://localhost:8000 -t invariantx-frontend:test frontend
+      - name: Verify native Render deployment
+        run: |
+          test ! -f backend/Dockerfile
+          test ! -f frontend/Dockerfile
+          ! grep -q "runtime: docker" render.yaml
+          grep -q "runtime: python" render.yaml
+          grep -q "runtime: static" render.yaml

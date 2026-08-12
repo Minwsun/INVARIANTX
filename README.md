@@ -37,7 +37,7 @@ flowchart TD
 - **Tools:** ADK Function Tools; every side effect passes the action gate.
 - **State:** ADK Session State for small dynamic data; Firestore for persistence.
 - **UI:** Next.js, TypeScript, XYFlow, REST, SSE.
-- **Delivery:** Docker, Render Blueprint, GitHub Actions.
+- **Delivery:** Render native Python, Render Static Site, GitHub Actions.
 - **Budget:** Maximum five LLM calls per run.
 
 The frozen contract lives in `TECHNOLOGY-CONTRACT.md`.
@@ -46,7 +46,7 @@ The frozen contract lives in `TECHNOLOGY-CONTRACT.md`.
 
 ```text
 backend/     FastAPI, ADK workflow, gates, evaluation
-frontend/    Next.js dashboard and SSE client
+frontend/    Static Next.js dashboard and SSE client
 benchmarks/  Reproducible safety baseline
 deploy/      Render deployment and smoke-test guide
 docs/        Demo and submission guidance

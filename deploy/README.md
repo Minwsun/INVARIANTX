@@ -1,6 +1,6 @@
 # Render Deployment
 
-INVARIANTX deploys its backend and frontend through the root `render.yaml` Blueprint. Firestore remains the Google Cloud infrastructure service.
+INVARIANTX deploys through the root `render.yaml` Blueprint. The backend uses Render's native Python runtime; the frontend is a static site served from Render's CDN. Firestore remains the Google Cloud infrastructure service.
 
 ## 1. Prepare Firestore
 
@@ -19,7 +19,7 @@ The command creates/reuses Firestore Native mode, creates `invariantx-render`, g
 1. Push the repository to GitHub.
 2. In Render, choose **New → Blueprint**.
 3. Select `Minwsun/INVARIANTX`.
-4. Render detects `render.yaml` and creates `invariantx-api` plus `invariantx-web` in Singapore.
+4. Render detects `render.yaml` and creates the Python `invariantx-api` service plus static `invariantx-web` site.
 5. Enter the prompted values:
    - `GOOGLE_CLOUD_PROJECT`: the project ID.
    - `GEMINI_API_KEY`: Gemini API key.

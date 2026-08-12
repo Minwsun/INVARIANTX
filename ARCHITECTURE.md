@@ -131,7 +131,8 @@ It consumes REST and SSE only. It contains no contract evaluation, gate, repair,
 
 ## Deployment
 
-- Backend and frontend run as Docker services on Render.
+- Backend runs on Render's native Python runtime.
+- Frontend is a Render Static Site served from CDN.
 - Firestore provides persistence.
 - Gemini calls originate from the backend.
 - Render authenticates to Firestore with a least-privilege service-account credential stored as a Render secret.
