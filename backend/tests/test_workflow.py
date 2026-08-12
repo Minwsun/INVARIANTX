@@ -157,6 +157,34 @@ def test_final_validator_accepts_compiler_percent_operator_alias() -> None:
     assert result.validation.verdict == "PASS"
 
 
+def test_compiler_canonicalizes_reduction_operator_aliases() -> None:
+    for operator in (
+        "decrease_by",
+        "decrease_by_at_least",
+        "decrease_by_percent",
+        "decrease_by_percentage",
+        "reduce_by",
+    ):
+        grounded = _ground_constraint_references(
+            {
+                "objectives": [
+                    {
+                        "id": "obj_1",
+                        "metric": "logistics_cost",
+                        "operator": operator,
+                        "target": 15,
+                        "unit": "percent",
+                        "reference": "baseline.logistics_cost",
+                        "source_span": "Reduce logistics cost by 15%",
+                    }
+                ]
+            },
+            {"baseline.logistics_cost": 100},
+        )
+
+        assert grounded["objectives"][0]["operator"] == "decrease_by"
+
+
 def fake_agent_nodes(
     *,
     contract=None,

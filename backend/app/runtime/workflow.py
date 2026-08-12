@@ -502,6 +502,20 @@ def _ground_constraint_references(
     if not isinstance(candidate, dict):
         return candidate
     normalized = {**candidate}
+    objectives = []
+    reduction_operators = {
+        "decrease_by",
+        "decrease_by_at_least",
+        "decrease_by_percent",
+        "decrease_by_percentage",
+        "reduce_by",
+    }
+    for objective in candidate.get("objectives", []):
+        item = dict(objective)
+        if item.get("operator") in reduction_operators:
+            item["operator"] = "decrease_by"
+        objectives.append(item)
+    normalized["objectives"] = objectives
     constraints = []
     for constraint in candidate.get("hard_constraints", []):
         item = dict(constraint)
@@ -655,12 +669,7 @@ def _objective_holds(
         target /= 100
     elif unit != "ratio":
         return False
-    if operator in {
-        "decrease_by",
-        "decrease_by_at_least",
-        "decrease_by_percent",
-        "decrease_by_percentage",
-    }:
+    if operator == "decrease_by":
         return baseline != 0 and (baseline - actual) / baseline >= target
     if operator == "less_than_or_equal":
         return actual <= target
