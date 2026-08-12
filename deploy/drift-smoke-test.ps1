@@ -41,7 +41,9 @@ $events = @(
     $streamContent -split "`r?`n`r?`n" |
         Where-Object { $_ -match "data: " } |
         ForEach-Object {
-            $dataLine = ($_ -split "`r?`n" | Where-Object { $_ -like "data: *" })[0]
+            $dataLine = [string]($_ -split "`r?`n" |
+                Where-Object { $_ -like "data: *" } |
+                Select-Object -First 1)
             ($dataLine.Substring(6) | ConvertFrom-Json)
         }
 )
