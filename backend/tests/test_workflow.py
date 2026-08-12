@@ -61,6 +61,30 @@ def test_compiler_constraints_are_grounded_from_unique_state_metric() -> None:
     )
 
 
+def test_compiler_replaces_empty_constraint_reference() -> None:
+    grounded = _ground_constraint_references(
+        {
+            "hard_constraints": [
+                {
+                    "id": "MEDICAL_SLA",
+                    "subject": "medical_orders",
+                    "metric": "delivery_delay",
+                    "operator": "less_than_or_equal",
+                    "value": None,
+                    "value_ref": "",
+                    "source_span": "without delaying medical orders",
+                }
+            ]
+        },
+        {"baseline.delivery_delay": 10},
+    )
+
+    assert grounded["hard_constraints"][0]["value_ref"] == (
+        "baseline.delivery_delay"
+    )
+    assert "value" not in grounded["hard_constraints"][0]
+
+
 def fake_agent_nodes(
     *,
     contract=None,
