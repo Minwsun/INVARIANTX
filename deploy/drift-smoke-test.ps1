@@ -28,7 +28,8 @@ if ($run.llm_call_count -ne 3) { throw "expected exactly three LLM calls" }
 if ($run.result.validation.verdict -ne "PASS") { throw "final validation failed" }
 
 $contract = Invoke-RestMethod "$BackendUrl/runs/$($created.run_id)/contract"
-$http = [System.Net.Http.HttpClient]::new()
+Add-Type -AssemblyName System.Net.Http
+$http = New-Object System.Net.Http.HttpClient
 try {
     $streamContent = $http.GetStringAsync(
         "$BackendUrl/runs/$($created.run_id)/events"
