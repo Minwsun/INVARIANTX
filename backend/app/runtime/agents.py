@@ -25,18 +25,28 @@ class AgentNodes:
 
 def gemini_schema(model_type: type) -> dict[str, Any]:
     schema = model_type.model_json_schema()
+    definitions = schema.get("$defs", {})
+
+    def inline_references(value: Any) -> Any:
+        if isinstance(value, dict):
+            reference = value.get("$ref")
+            if reference:
+                name = reference.rsplit("/", 1)[-1]
+                return inline_references(definitions[name])
+            return {
+                key: inline_references(item)
+                for key, item in value.items()
+                if key != "$defs"
+            }
+        if isinstance(value, list):
+            return [inline_references(item) for item in value]
+        return value
 
     def sanitize(value: Any) -> Any:
         if isinstance(value, dict):
             result = {}
             for key, item in value.items():
                 if key == "additionalProperties":
-                    continue
-                if key == "$defs":
-                    result["defs"] = sanitize(item)
-                    continue
-                if key == "$ref":
-                    result["ref"] = item.replace("#/$defs/", "#/defs/")
                     continue
                 if key == "const":
                     result["enum"] = [item]
@@ -50,7 +60,7 @@ def gemini_schema(model_type: type) -> dict[str, Any]:
             return [sanitize(item) for item in value]
         return value
 
-    sanitized = sanitize(schema)
+    sanitized = sanitize(inline_references(schema))
     types.Schema.model_validate(sanitized)
     return sanitized
 

@@ -35,3 +35,7 @@ def test_gemini_schema_removes_unsupported_additional_properties() -> None:
         assert "additionalProperties" not in schema
         assert "exclusiveMinimum" not in schema
         assert "'const'" not in schema
+        assert "'$ref'" not in schema
+        assert "'$defs'" not in schema
+        assert "'ref'" not in schema
+        assert "'defs'" not in schema
