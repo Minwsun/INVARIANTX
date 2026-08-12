@@ -516,6 +516,7 @@ def _normalize_intent_candidate(
         "decrease_by_percent",
         "decrease_by_percentage",
         "reduce_by",
+        "reduce_by_percentage",
     }
     for objective in candidate.get("objectives", []):
         item = dict(objective)

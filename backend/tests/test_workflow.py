@@ -139,6 +139,7 @@ def test_compiler_canonicalizes_reduction_operator_aliases() -> None:
         "decrease_by_percent",
         "decrease_by_percentage",
         "reduce_by",
+        "reduce_by_percentage",
     ):
         grounded = _ground_constraint_references(
             {
