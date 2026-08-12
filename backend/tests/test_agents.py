@@ -14,6 +14,9 @@ def test_production_nodes_are_real_adk_llm_agents() -> None:
     assert nodes.intent_compiler.model == DEFAULT_MODEL
     assert nodes.planner.mode == "single_turn"
     assert nodes.worker.tools == []
+    assert nodes.intent_compiler.generate_content_config.max_output_tokens == 800
+    assert nodes.planner.generate_content_config.max_output_tokens == 400
+    assert nodes.worker.generate_content_config.max_output_tokens == 300
 
 
 def test_workflow_request_accepts_only_goal_and_runtime_state() -> None:

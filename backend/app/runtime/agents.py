@@ -41,7 +41,11 @@ def gemini_schema(model_type: type) -> dict[str, Any]:
 
 
 def build_agent_nodes(model: str = DEFAULT_MODEL) -> AgentNodes:
-    config = types.GenerateContentConfig(temperature=0, max_output_tokens=150)
+    def config(max_output_tokens: int) -> types.GenerateContentConfig:
+        return types.GenerateContentConfig(
+            temperature=0,
+            max_output_tokens=max_output_tokens,
+        )
 
     def telemetry(agent_name: str):
         def capture(callback_context, llm_response: LlmResponse):
@@ -71,7 +75,7 @@ def build_agent_nodes(model: str = DEFAULT_MODEL) -> AgentNodes:
                 "provided domain vocabulary. Do not invent permissions or prose."
             ),
             output_schema=gemini_schema(IntentContractCandidate),
-            generate_content_config=config,
+            generate_content_config=config(800),
             after_model_callback=telemetry("intent_compiler"),
         ),
         planner=LlmAgent(
@@ -85,7 +89,7 @@ def build_agent_nodes(model: str = DEFAULT_MODEL) -> AgentNodes:
                 "invariant. Do not call tools. Return only the supplied JSON schema."
             ),
             output_schema=gemini_schema(DelegationProposal),
-            generate_content_config=config,
+            generate_content_config=config(400),
             after_model_callback=telemetry("planner_agent"),
         ),
         worker=LlmAgent(
@@ -100,7 +104,7 @@ def build_agent_nodes(model: str = DEFAULT_MODEL) -> AgentNodes:
                 "Return only the supplied JSON schema."
             ),
             output_schema=gemini_schema(ActionProposal),
-            generate_content_config=config,
+            generate_content_config=config(300),
             after_model_callback=telemetry("worker_agent"),
         ),
     )

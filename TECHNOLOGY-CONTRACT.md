@@ -55,7 +55,8 @@ INVARIANT is a runtime layer that preserves, verifies, and repairs human intent 
 - Normal run target: at most 3 LLM calls.
 - Absolute run limit: at most 5 LLM calls.
 - Semantic-call input target: fewer than 1,000 tokens.
-- Semantic-call output target: fewer than 150 tokens.
+- Semantic-verifier output target: fewer than 150 tokens.
+- Structured agent outputs use the smallest complete schema budget: compiler 800, planner 400, worker 300 tokens maximum.
 - Each call records model, role, input tokens, output tokens, latency, cache status, confidence, and escalation reason.
 - Reaching the call limit blocks optional reasoning and returns the safest valid terminal result.
 
