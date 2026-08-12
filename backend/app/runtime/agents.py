@@ -65,6 +65,23 @@ def gemini_schema(model_type: type) -> dict[str, Any]:
     return sanitized
 
 
+def worker_action_schema() -> dict[str, Any]:
+    schema = gemini_schema(ActionProposal)
+    properties = schema["properties"]
+    properties["arguments"] = {
+        "type": "object",
+        "properties": {"plan_id": {"type": "string", "minLength": 1}},
+        "required": ["plan_id"],
+    }
+    properties["proposed_metrics"] = {
+        "type": "object",
+        "properties": {"delivery_delay": {"type": "number"}},
+        "required": ["delivery_delay"],
+    }
+    types.Schema.model_validate(schema)
+    return schema
+
+
 def build_agent_nodes(model: str = DEFAULT_MODEL) -> AgentNodes:
     def config(max_output_tokens: int) -> types.GenerateContentConfig:
         return types.GenerateContentConfig(
@@ -125,10 +142,13 @@ def build_agent_nodes(model: str = DEFAULT_MODEL) -> AgentNodes:
             instruction=(
                 "Convert the passed delegation into one action proposal using only an "
                 "allowed tool. Preserve contract id and version. Include projected "
-                "metrics needed by deterministic gates. Do not execute the tool. "
+                "metrics for every hard constraint. For the logistics adapter, emit "
+                "arguments.plan_id and proposed_metrics.delivery_delay; the delay must "
+                "satisfy the contract's direct value or referenced baseline state. "
+                "Do not execute the tool. "
                 "Return only the supplied JSON schema."
             ),
-            output_schema=gemini_schema(ActionProposal),
+            output_schema=worker_action_schema(),
             generate_content_config=config(300),
             after_model_callback=telemetry("worker_agent"),
         ),

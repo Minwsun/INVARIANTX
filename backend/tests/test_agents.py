@@ -1,7 +1,12 @@
 from google.adk.agents import LlmAgent
 
 from app.invariant.models import ActionProposal, IntentContractCandidate
-from app.runtime.agents import DEFAULT_MODEL, build_agent_nodes, gemini_schema
+from app.runtime.agents import (
+    DEFAULT_MODEL,
+    build_agent_nodes,
+    gemini_schema,
+    worker_action_schema,
+)
 from app.runtime.workflow import WorkflowRequest
 
 
@@ -39,3 +44,12 @@ def test_gemini_schema_removes_unsupported_additional_properties() -> None:
         assert "'$defs'" not in schema
         assert "'ref'" not in schema
         assert "'defs'" not in schema
+
+
+def test_worker_schema_requires_gate_evidence() -> None:
+    schema = worker_action_schema()
+
+    assert schema["properties"]["arguments"]["required"] == ["plan_id"]
+    assert schema["properties"]["proposed_metrics"]["required"] == [
+        "delivery_delay"
+    ]
