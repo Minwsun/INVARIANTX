@@ -17,6 +17,8 @@ services:
         sync: false
       - key: GCP_SERVICE_ACCOUNT_JSON
         sync: false
+      - key: INVARIANT_DEMO_KEY
+        sync: false
       - key: CORS_ORIGIN_REGEX
         value: ^https://invariantx-web(?:-[a-z0-9-]+)?\.onrender\.com$
 

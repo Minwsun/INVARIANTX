@@ -24,6 +24,7 @@ The command creates/reuses Firestore Native mode, creates `invariantx-render`, g
    - `GOOGLE_CLOUD_PROJECT`: the project ID.
    - `GEMINI_API_KEY`: Gemini API key.
    - `GCP_SERVICE_ACCOUNT_JSON`: the complete JSON content from `.secrets/invariantx-render.json`.
+   - `INVARIANT_DEMO_KEY`: a random secret used only by the protected drift proof endpoint.
 
 The frontend receives the backend hostname through a Blueprint service reference. The backend CORS regex accepts only the generated `invariantx-web` Render hostname.
 
@@ -32,6 +33,9 @@ The frontend receives the backend hostname through a Blueprint service reference
 ```powershell
 .\scripts\verify-gcp.ps1 -ProjectId "YOUR_PROJECT_ID"
 .\deploy\smoke-test.ps1 -BackendUrl "https://invariantx-api.onrender.com"
+.\deploy\drift-smoke-test.ps1 `
+  -BackendUrl "https://invariantx-api.onrender.com" `
+  -DemoKey $env:INVARIANT_DEMO_KEY
 ```
 
 Render Free services may cold-start. The smoke test allows 120 seconds by default.

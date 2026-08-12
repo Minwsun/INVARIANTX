@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hmac
 import os
 from dataclasses import dataclass
 from typing import Any
@@ -27,6 +28,7 @@ class RunSnapshot(FrozenModel):
     run_id: str
     status: RunStatus
     goal: str
+    scenario: str = "standard"
     contract_id: str | None = None
     contract_version: int | None = None
     repair_count: int = 0
@@ -55,20 +57,31 @@ class RunService:
         self.agent_nodes = agent_nodes
         self._runs: dict[str, _RunRecord] = {}
 
-    async def create(self, goal: str) -> RunSnapshot:
+    async def create(
+        self,
+        goal: str,
+        *,
+        scenario: str = "standard",
+    ) -> RunSnapshot:
         if self.agent_nodes is None and not os.getenv("GEMINI_API_KEY"):
             raise ValueError("GEMINI_API_KEY is required for real agent execution")
         run_id = f"run_{uuid4().hex}"
         request = WorkflowRequest(
             run_id=run_id,
             goal=goal,
+            scenario=scenario,
             state={
                 "baseline.medical_delay": 10,
                 "baseline.delivery_delay": 10,
                 "baseline.logistics_cost": 100,
             },
         )
-        snapshot = RunSnapshot(run_id=run_id, status=RunStatus.CREATED, goal=goal)
+        snapshot = RunSnapshot(
+            run_id=run_id,
+            status=RunStatus.CREATED,
+            goal=goal,
+            scenario=scenario,
+        )
         record = _RunRecord(snapshot=snapshot, request=request)
         self._runs[run_id] = record
         await self._save_snapshot(record)
@@ -169,7 +182,7 @@ class RunService:
                     parts=[types.Part(text=record.request.model_dump_json())],
                 ),
             ):
-                await self._publish_adk_event(run_id, event)
+                await self._publish_adk_event(record, event)
                 if event.node_info and event.node_info.path.endswith("finalize@1"):
                     result = WorkflowResult.model_validate(event.output)
             if result is None:
@@ -212,21 +225,28 @@ class RunService:
                 {"error": str(error)},
             )
 
-    async def _publish_adk_event(self, run_id: str, event) -> None:
+    async def _publish_adk_event(self, record: _RunRecord, event) -> None:
         if not event.node_info:
             return
+        run_id = record.snapshot.run_id
         node_name = event.node_info.path.rsplit("/", 1)[-1].split("@", 1)[0]
         route = event.actions.route
         mapping = {
             "intent_compiler": EventType.INTENT_COMPILED,
             "register_contract": EventType.CONTRACT_REGISTERED,
             "planner_agent": EventType.TASK_PROPOSED,
+            "inject_demo_drift": EventType.DEMO_DRIFT_INJECTED,
             "repair_task": EventType.REPAIR_ACCEPTED,
             "worker_agent": EventType.ACTION_PROPOSED,
             "execute_tool": EventType.TOOL_COMPLETED,
             "validate_result": EventType.VALIDATION_COMPLETED,
         }
         event_type = mapping.get(node_name)
+        if (
+            node_name == "inject_demo_drift"
+            and record.snapshot.scenario != "deliberate_constraint_omission"
+        ):
+            event_type = None
         if node_name == "check_delegation":
             event_type = (
                 EventType.DRIFT_DETECTED
@@ -234,11 +254,33 @@ class RunService:
                 else EventType.GATE_PASSED
             )
         if event_type is not None:
+            payload = {"route": route} if route else {}
+            packet = _event_packet(event.output)
+            if node_name == "inject_demo_drift" and packet and packet.contract:
+                payload = {
+                    "scenario": record.snapshot.scenario,
+                    "removed_constraint_ids": [packet.contract.hard_constraints[0].id],
+                }
+            elif node_name == "check_delegation" and packet:
+                payload.update(
+                    {
+                        "violation_ids": [
+                            violation.reference_id for violation in packet.violations
+                        ],
+                        "drift_types": [
+                            violation.drift_type.value for violation in packet.violations
+                        ],
+                    }
+                )
+            elif node_name == "repair_task" and packet and packet.delegation:
+                payload["restored_constraint_ids"] = [
+                    claim.constraint_id for claim in packet.delegation.constraint_claims
+                ]
             await self.journal.append(
                 run_id,
                 event_type,
                 node_name,
-                {"route": route} if route else {},
+                payload,
             )
 
     def _record(self, run_id: str) -> _RunRecord:
@@ -252,3 +294,17 @@ class RunService:
             record.snapshot.run_id,
             record.snapshot.model_dump(mode="json"),
         )
+
+
+def demo_key_matches(provided: str | None) -> bool:
+    expected = os.getenv("INVARIANT_DEMO_KEY")
+    return bool(expected and provided and hmac.compare_digest(provided, expected))
+
+
+def _event_packet(output: Any) -> WorkflowResult | Any:
+    try:
+        from app.runtime.workflow import WorkflowPacket
+
+        return WorkflowPacket.model_validate(output)
+    except Exception:
+        return None

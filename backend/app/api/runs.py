@@ -5,6 +5,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.runtime.service import RunService
+from app.runtime.service import demo_key_matches
 
 
 class RunCreateRequest(BaseModel):
@@ -19,6 +20,21 @@ def create_runs_router(service: RunService) -> APIRouter:
     async def create_run(body: RunCreateRequest):
         try:
             return await service.create(body.goal)
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+
+    @router.post("/demo", status_code=status.HTTP_202_ACCEPTED)
+    async def create_demo_run(
+        body: RunCreateRequest,
+        demo_key: str | None = Header(default=None, alias="X-INVARIANT-DEMO-KEY"),
+    ):
+        if not demo_key_matches(demo_key):
+            raise HTTPException(status_code=403, detail="invalid demo credentials")
+        try:
+            return await service.create(
+                body.goal,
+                scenario="deliberate_constraint_omission",
+            )
         except ValueError as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
 

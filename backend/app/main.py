@@ -21,7 +21,7 @@ def create_app(service: RunService | None = None) -> FastAPI:
         allow_origin_regex=os.getenv("CORS_ORIGIN_REGEX"),
         allow_credentials=False,
         allow_methods=["GET", "POST"],
-        allow_headers=["Content-Type", "Last-Event-ID"],
+        allow_headers=["Content-Type", "Last-Event-ID", "X-INVARIANT-DEMO-KEY"],
     )
     app.state.run_service = service or RunService(store=create_store())
     app.include_router(create_runs_router(app.state.run_service))

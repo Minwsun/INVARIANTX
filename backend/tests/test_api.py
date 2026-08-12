@@ -124,6 +124,57 @@ def test_run_api_requires_gemini_without_injected_agents(monkeypatch) -> None:
     assert "GEMINI_API_KEY" in response.json()["detail"]
 
 
+def test_demo_run_requires_secret_and_records_repair(monkeypatch) -> None:
+    async def run():
+        monkeypatch.setenv("INVARIANT_DEMO_KEY", "demo-secret")
+        service = RunService(agent_nodes=fake_agent_nodes())
+        app = create_app(service)
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            denied = await client.post(
+                "/runs/demo",
+                json={"goal": "Reduce logistics cost without delaying medical orders"},
+            )
+            created = await client.post(
+                "/runs/demo",
+                headers={"X-INVARIANT-DEMO-KEY": "demo-secret"},
+                json={"goal": "Reduce logistics cost without delaying medical orders"},
+            )
+            run_id = created.json()["run_id"]
+            snapshot = await wait_for_terminal(client, run_id)
+            events = await service.journal.list(run_id)
+            return denied, created, snapshot, events
+
+    denied, created, snapshot, events = asyncio.run(run())
+
+    assert denied.status_code == 403
+    assert created.status_code == 202
+    assert snapshot["scenario"] == "deliberate_constraint_omission"
+    assert snapshot["status"] == RunStatus.COMPLETED
+    assert snapshot["repair_count"] == 1
+    assert snapshot["llm_call_count"] == 3
+    assert [event.type.value for event in events].count("DEMO_DRIFT_INJECTED") == 1
+    assert "demo-secret" not in str([event.model_dump() for event in events])
+
+
+def test_standard_run_never_emits_demo_drift_event() -> None:
+    async def run():
+        service = RunService(agent_nodes=fake_agent_nodes())
+        created = await service.create("Reduce cost without delaying medical orders")
+        for _ in range(100):
+            snapshot = await service.get(created.run_id)
+            if snapshot.status in {RunStatus.COMPLETED, RunStatus.BLOCKED, RunStatus.FAILED}:
+                break
+            await asyncio.sleep(0.01)
+        return await service.journal.list(created.run_id)
+
+    events = asyncio.run(run())
+
+    assert all(event.type.value != "DEMO_DRIFT_INJECTED" for event in events)
+
+
 def test_cors_allows_local_dashboard() -> None:
     async def run():
         app = create_app(RunService(agent_nodes=fake_agent_nodes()))

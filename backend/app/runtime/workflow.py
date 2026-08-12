@@ -37,6 +37,7 @@ class WorkflowRequest(FrozenModel):
     run_id: str = Field(min_length=1)
     goal: str = Field(min_length=1, max_length=4000)
     state: dict[str, float]
+    scenario: Literal["standard", "deliberate_constraint_omission"] = "standard"
 
 
 class WorkflowPacket(FrozenModel):
@@ -159,6 +160,28 @@ def build_invariant_workflow(
             ctx,
             packet.model_copy(update={"delegation": proposal}),
             "planner_agent",
+        )
+
+    def inject_demo_drift(node_input: WorkflowPacket) -> WorkflowPacket:
+        if (
+            node_input.request.scenario != "deliberate_constraint_omission"
+            or node_input.contract is None
+            or node_input.delegation is None
+            or not node_input.contract.hard_constraints
+        ):
+            return node_input
+        target_id = node_input.contract.hard_constraints[0].id
+        claims = tuple(
+            claim
+            for claim in node_input.delegation.constraint_claims
+            if claim.constraint_id != target_id
+        )
+        return node_input.model_copy(
+            update={
+                "delegation": node_input.delegation.model_copy(
+                    update={"constraint_claims": claims}
+                )
+            }
         )
 
     async def check_delegation(ctx: Context, node_input: WorkflowPacket) -> Event:
@@ -441,6 +464,7 @@ def build_invariant_workflow(
                 prepare_planner,
                 nodes.planner,
                 merge_planner,
+                inject_demo_drift,
                 check_delegation,
             ),
             (

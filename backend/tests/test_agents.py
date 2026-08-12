@@ -31,7 +31,8 @@ def test_workflow_request_accepts_only_goal_and_runtime_state() -> None:
         state={},
     )
 
-    assert set(request.model_dump()) == {"run_id", "goal", "state"}
+    assert set(request.model_dump()) == {"run_id", "goal", "state", "scenario"}
+    assert request.scenario == "standard"
 
 
 def test_gemini_schema_removes_unsupported_additional_properties() -> None:
