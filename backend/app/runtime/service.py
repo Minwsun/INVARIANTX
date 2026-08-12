@@ -64,6 +64,7 @@ class RunService:
             goal=goal,
             state={
                 "baseline.medical_delay": 10,
+                "baseline.delivery_delay": 10,
                 "baseline.logistics_cost": 100,
             },
         )

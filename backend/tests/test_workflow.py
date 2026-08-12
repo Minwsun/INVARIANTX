@@ -31,6 +31,7 @@ def workflow_request(
         goal="Reduce logistics cost by 15% without delaying medical orders.",
         state={
             "baseline.medical_delay": 10,
+            "baseline.delivery_delay": 10,
             "baseline.logistics_cost": 100,
         },
     )

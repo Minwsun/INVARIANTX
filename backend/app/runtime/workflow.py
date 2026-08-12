@@ -486,6 +486,10 @@ def _ground_constraint_references(
             matches = [key for key in state if key.rsplit(".", 1)[-1] == metric]
             if len(matches) == 1:
                 item["value_ref"] = matches[0]
+        if item.get("value") is None:
+            item.pop("value", None)
+        if item.get("value_ref") is None:
+            item.pop("value_ref", None)
         constraints.append(item)
     normalized["hard_constraints"] = constraints
     return normalized
