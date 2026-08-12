@@ -627,6 +627,7 @@ def _objective_holds(
     if operator in {
         "decrease_by",
         "decrease_by_at_least",
+        "decrease_by_percent",
         "decrease_by_percentage",
     }:
         return baseline != 0 and (baseline - actual) / baseline >= target

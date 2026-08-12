@@ -109,6 +109,31 @@ def test_compiler_normalizes_no_delay_to_baseline_constraint() -> None:
     assert "value" not in constraint
 
 
+def test_final_validator_accepts_compiler_percent_operator_alias() -> None:
+    contract = medical_logistics_contract().model_copy(
+        update={
+            "objectives": (
+                medical_logistics_contract().objectives[0].model_copy(
+                    update={
+                        "operator": "decrease_by_percent",
+                        "target": 15,
+                        "unit": "percent",
+                        "reference": "baseline.logistics_cost",
+                    }
+                ),
+            )
+        }
+    )
+
+    result, _, _ = run_workflow(
+        workflow_request(),
+        agent_nodes=fake_agent_nodes(contract=contract),
+    )
+
+    assert result.status == "COMPLETED"
+    assert result.validation.verdict == "PASS"
+
+
 def fake_agent_nodes(
     *,
     contract=None,
