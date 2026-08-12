@@ -511,6 +511,13 @@ def _ground_constraint_references(
         ]
         source_span = str(item.get("source_span", "")).lower()
         if (
+            not baseline_matches
+            and "delay" in source_span
+            and "baseline.delivery_delay" in state
+        ):
+            item["metric"] = "delivery_delay"
+            baseline_matches = ["baseline.delivery_delay"]
+        if (
             item.get("operator") == "equal"
             and item.get("value") == 0
             and len(baseline_matches) == 1

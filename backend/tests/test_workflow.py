@@ -109,6 +109,29 @@ def test_compiler_normalizes_no_delay_to_baseline_constraint() -> None:
     assert "value" not in constraint
 
 
+def test_compiler_normalizes_delay_metric_alias_from_source_span() -> None:
+    grounded = _ground_constraint_references(
+        {
+            "hard_constraints": [
+                {
+                    "id": "hc_1",
+                    "subject": "medical_orders",
+                    "metric": "medical_order_delay",
+                    "operator": "less_than_or_equal",
+                    "value": None,
+                    "value_ref": None,
+                    "source_span": "without delaying medical orders",
+                }
+            ]
+        },
+        {"baseline.delivery_delay": 10},
+    )
+
+    constraint = grounded["hard_constraints"][0]
+    assert constraint["metric"] == "delivery_delay"
+    assert constraint["value_ref"] == "baseline.delivery_delay"
+
+
 def test_final_validator_accepts_compiler_percent_operator_alias() -> None:
     contract = medical_logistics_contract().model_copy(
         update={
