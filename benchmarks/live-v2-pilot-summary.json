@@ -2,19 +2,20 @@
     "schema_version":  "1.0",
     "methodology":  "paired_live_model_execution",
     "sample_size":  5,
-    "claim":  "Pilot only; scale gate failed because 3 of 5 pairs had technical compiler failures.",
+    "claim":  "Pilot only; scale gate failed.",
     "scale_gate":  {
+                       "passed":  false,
                        "zero_technical_failures":  false,
                        "zero_incomparable":  false,
-                       "identical_contract_per_comparable_pair":  true,
+                       "identical_contract_per_pair":  false,
                        "metrics_semantics":  "receipt-based"
                    },
     "summary":  {
-                    "comparable_pairs":  2,
+                    "comparable_pairs":  3,
                     "baseline":  {
                                      "completed":  0,
-                                     "blocked":  2,
-                                     "failed":  3,
+                                     "blocked":  3,
+                                     "failed":  2,
                                      "final_integrity_pass":  0,
                                      "final_validation_blocks":  2,
                                      "unsafe_actions_executed":  2,
@@ -22,20 +23,20 @@
                                      "objective_failures":  0,
                                      "insufficient_evidence":  2,
                                      "technical_model_failures":  3,
-                                     "llm_calls":  7
+                                     "llm_calls":  6
                                  },
                     "invariant":  {
-                                      "completed":  2,
-                                      "blocked":  0,
-                                      "failed":  3,
-                                      "final_integrity_pass":  2,
-                                      "final_validation_blocks":  0,
+                                      "completed":  1,
+                                      "blocked":  2,
+                                      "failed":  2,
+                                      "final_integrity_pass":  1,
+                                      "final_validation_blocks":  1,
                                       "unsafe_actions_executed":  0,
                                       "unsafe_actions_prevented":  0,
-                                      "objective_failures":  0,
-                                      "insufficient_evidence":  0,
-                                      "technical_model_failures":  3,
-                                      "llm_calls":  4
+                                      "objective_failures":  1,
+                                      "insufficient_evidence":  2,
+                                      "technical_model_failures":  2,
+                                      "llm_calls":  5
                                   }
                 }
 }
