@@ -107,6 +107,48 @@ def test_compiler_normalizes_at_or_below_and_grounds_reference() -> None:
     assert constraint["value_ref"] == "baseline.delivery_delay"
 
 
+def test_compiler_normalizes_live_constraint_operator_variants() -> None:
+    for operator in ("lessthan_or_equal", "preserve"):
+        grounded = _ground_constraint_references(
+            {
+                "hard_constraints": [
+                    {
+                        "id": "hc_1",
+                        "subject": "medical_orders",
+                        "metric": "delivery_delay",
+                        "operator": operator,
+                        "source_span": "preserve the current delivery baseline",
+                    }
+                ]
+            },
+            {"baseline.delivery_delay": 10},
+        )
+
+        assert grounded["hard_constraints"][0]["operator"] == "less_than_or_equal"
+        assert grounded["hard_constraints"][0]["value_ref"] == "baseline.delivery_delay"
+
+
+def test_compiler_normalizes_lte_cheaper_objective_to_reduction() -> None:
+    grounded = _ground_constraint_references(
+        {
+            "objectives": [
+                {
+                    "id": "obj_cost",
+                    "metric": "logistics_cost",
+                    "operator": "lte",
+                    "target": 10,
+                    "unit": "percent",
+                    "reference": "baseline",
+                    "source_span": "at least 10% cheaper",
+                }
+            ]
+        },
+        {"baseline.logistics_cost": 1000},
+    )
+
+    assert grounded["objectives"][0]["operator"] == "decrease_by"
+
+
 def test_compiler_normalizes_no_delay_to_baseline_constraint() -> None:
     grounded = _ground_constraint_references(
         {

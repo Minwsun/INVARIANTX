@@ -675,7 +675,7 @@ def _normalize_intent_candidate(
         operator = str(item.get("operator", "")).casefold()
         if operator in reduction_operators or (
             operator in {"<=", "lte", "less_than_or_equal"}
-            and any(term in source_span for term in ("reduce", "decrease", "cut", "lower"))
+            and any(term in source_span for term in ("reduce", "decrease", "cut", "lower", "cheaper", "save"))
             and ("%" in source_span or "percent" in source_span)
         ):
             item["operator"] = "decrease_by"
@@ -692,12 +692,14 @@ def _normalize_intent_candidate(
         "less_than_or_equal": "less_than_or_equal",
         "less_than_or_equals": "less_than_or_equal",
         "less_than_or_equal_to": "less_than_or_equal",
+        "lessthan_or_equal": "less_than_or_equal",
         "at_most": "less_than_or_equal",
         "at_or_below": "less_than_or_equal",
         "<=": "less_than_or_equal",
         "lte": "less_than_or_equal",
         "preserve_current": "less_than_or_equal",
         "preserve_baseline": "less_than_or_equal",
+        "preserve": "less_than_or_equal",
         "greater_than_or_equal": "greater_than_or_equal",
         "greater_than_or_equals": "greater_than_or_equal",
         "at_least": "greater_than_or_equal",
