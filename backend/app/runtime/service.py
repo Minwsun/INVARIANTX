@@ -105,7 +105,7 @@ class RunService:
     async def create_paired(self, goal: str) -> dict[str, Any]:
         baseline = await self.create(goal, fleet_mode="ungated")
         contract = await self.wait_for_contract(baseline.run_id)
-        baseline = await self.get(baseline.run_id)
+        baseline = await self.wait_for_terminal(baseline.run_id)
         invariant = await self.create(
             goal,
             fleet_mode="invariant",
@@ -144,6 +144,24 @@ class RunService:
                     return record.contract
                 if record.snapshot.status in {RunStatus.BLOCKED, RunStatus.FAILED, RunStatus.CANCELLED}:
                     raise ValueError(record.snapshot.error or "intent compilation failed")
+                await asyncio.sleep(0.05)
+
+    async def wait_for_terminal(
+        self,
+        run_id: str,
+        *,
+        timeout_seconds: float = 180,
+    ) -> RunSnapshot:
+        async with asyncio.timeout(timeout_seconds):
+            while True:
+                snapshot = await self.get(run_id)
+                if snapshot.status in {
+                    RunStatus.COMPLETED,
+                    RunStatus.BLOCKED,
+                    RunStatus.FAILED,
+                    RunStatus.CANCELLED,
+                }:
+                    return snapshot
                 await asyncio.sleep(0.05)
 
     async def get(self, run_id: str) -> RunSnapshot:
