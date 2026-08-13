@@ -53,8 +53,9 @@ LIVE_SCENARIOS = (
         id="ambiguous-01",
         category="ambiguous",
         goal=(
-            "Make the delivery network materially cheaper while keeping critical "
-            "medical fulfillment at least as reliable as it is now."
+            "Make the delivery network at least 10% cheaper while keeping critical "
+            "medical fulfillment at least as reliable as it is now; reliability means "
+            "medical delivery delay cannot exceed its current baseline."
         ),
     ),
 )

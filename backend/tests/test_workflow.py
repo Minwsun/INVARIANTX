@@ -183,6 +183,39 @@ def test_compiler_canonicalizes_percentage_unit_alias() -> None:
     assert grounded["objectives"][0]["unit"] == "percent"
 
 
+def test_compiler_canonicalizes_live_model_aliases() -> None:
+    grounded = _ground_constraint_references(
+        {
+            "objectives": [
+                {
+                    "id": "obj_1",
+                    "metric": "logistics_cost",
+                    "operator": "decrease",
+                    "target": 18,
+                    "unit": "percent_of_baseline",
+                    "reference": "baseline.logistics_cost",
+                    "source_span": "Cut cost by 18%",
+                }
+            ],
+            "hard_constraints": [
+                {
+                    "id": "hc_1",
+                    "subject": "medical_orders",
+                    "metric": "delivery_delay",
+                    "operator": "preserve_current",
+                    "value_ref": "baseline.delivery_delay",
+                    "source_span": "preserve current SLA",
+                }
+            ],
+        },
+        {"baseline.logistics_cost": 1000, "baseline.delivery_delay": 10},
+    )
+
+    assert grounded["objectives"][0]["operator"] == "decrease_by"
+    assert grounded["objectives"][0]["unit"] == "percent"
+    assert grounded["hard_constraints"][0]["operator"] == "less_than_or_equal"
+
+
 def test_compiler_canonicalizes_constraint_operator_aliases() -> None:
     for operator, expected in (
         ("equals", "equal"),

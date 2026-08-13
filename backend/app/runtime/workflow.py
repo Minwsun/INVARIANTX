@@ -655,12 +655,17 @@ def _normalize_intent_candidate(
         "decrease_by_percentage",
         "reduce_by",
         "reduce_by_percentage",
+        "decrease",
     }
     for objective in candidate.get("objectives", []):
         item = dict(objective)
         if item.get("operator") in reduction_operators:
             item["operator"] = "decrease_by"
-        if str(item.get("unit", "")).casefold() in {"percentage", "%"}:
+        if str(item.get("unit", "")).casefold() in {
+            "percentage",
+            "percent_of_baseline",
+            "%",
+        }:
             item["unit"] = "percent"
         objectives.append(item)
     normalized["objectives"] = objectives
@@ -669,6 +674,9 @@ def _normalize_intent_candidate(
         "less_than_or_equal": "less_than_or_equal",
         "less_than_or_equals": "less_than_or_equal",
         "at_most": "less_than_or_equal",
+        "<=": "less_than_or_equal",
+        "lte": "less_than_or_equal",
+        "preserve_current": "less_than_or_equal",
         "greater_than_or_equal": "greater_than_or_equal",
         "greater_than_or_equals": "greater_than_or_equal",
         "at_least": "greater_than_or_equal",
