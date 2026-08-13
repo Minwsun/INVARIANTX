@@ -152,7 +152,7 @@ class RunService:
             await self._save_snapshot(record)
 
         workflow = build_invariant_workflow(
-            self.adapter.tools(),
+            self.adapter.tools(record.snapshot.scenario),
             domain_vocabulary=self.adapter.vocabulary(),
             domain_adapter_name=self.adapter.name,
             intent_normalizer=self.adapter.normalize_intent,

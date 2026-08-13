@@ -39,7 +39,11 @@ class WorkflowRequest(FrozenModel):
     run_id: str = Field(min_length=1)
     goal: str = Field(min_length=1, max_length=4000)
     state: dict[str, float]
-    scenario: Literal["standard", "deliberate_constraint_omission"] = "standard"
+    scenario: Literal[
+        "standard",
+        "deliberate_constraint_omission",
+        "deliberate_tool_timeout",
+    ] = "standard"
 
 
 class WorkflowPacket(FrozenModel):

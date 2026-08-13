@@ -1,4 +1,5 @@
 from typing import Any
+import time
 
 from app.domain.adapter import DomainAdapter
 from app.invariant.models import EvidenceSource, EvidenceType, ExecutionReceipt, ToolRisk
@@ -20,6 +21,10 @@ class LogisticsTools:
             "occurred_outcomes": [],
             "protected_entities": {"medical_orders": True},
         }
+
+    def apply_plan_slow(self, plan_id: str) -> dict[str, object]:
+        time.sleep(11)
+        return self.apply_plan(plan_id)
 
 
 class LogisticsAdapter(DomainAdapter):
@@ -44,8 +49,13 @@ class LogisticsAdapter(DomainAdapter):
             "baseline.logistics_cost": 100,
         }
 
-    def tools(self) -> dict[str, tuple[Any, ToolRisk]]:
-        return {"apply_plan": (self.runtime_tools.apply_plan, ToolRisk.SIDE_EFFECT)}
+    def tools(self, scenario: str = "standard") -> dict[str, tuple[Any, ToolRisk]]:
+        tool = (
+            self.runtime_tools.apply_plan_slow
+            if scenario == "deliberate_tool_timeout"
+            else self.runtime_tools.apply_plan
+        )
+        return {"apply_plan": (tool, ToolRisk.SIDE_EFFECT)}
 
     def build_receipt(
         self,

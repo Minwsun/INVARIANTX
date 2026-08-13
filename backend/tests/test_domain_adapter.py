@@ -18,3 +18,13 @@ def test_logistics_adapter_builds_canonical_simulator_receipt() -> None:
 def test_logistics_adapter_rejects_malformed_result() -> None:
     with pytest.raises(ValueError):
         LogisticsAdapter().build_receipt({"status": "applied"}, {})
+
+
+def test_logistics_adapter_selects_slow_tool_only_for_timeout_demo() -> None:
+    adapter = LogisticsAdapter()
+
+    standard_tool = adapter.tools()["apply_plan"][0]
+    timeout_tool = adapter.tools("deliberate_tool_timeout")["apply_plan"][0]
+
+    assert standard_tool.__name__ == "apply_plan"
+    assert timeout_tool.__name__ == "apply_plan_slow"

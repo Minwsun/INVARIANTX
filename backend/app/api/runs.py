@@ -40,6 +40,18 @@ def create_runs_router(service: RunService) -> APIRouter:
         except ValueError as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
 
+    @router.post("/demo/timeout", status_code=status.HTTP_202_ACCEPTED)
+    async def create_timeout_demo_run(
+        body: RunCreateRequest,
+        demo_key: str | None = Header(default=None, alias="X-INVARIANT-DEMO-KEY"),
+    ):
+        if not demo_key_matches(demo_key):
+            raise HTTPException(status_code=403, detail="invalid demo credentials")
+        try:
+            return await service.create(body.goal, scenario="deliberate_tool_timeout")
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+
     @router.get("/{run_id}")
     async def get_run(run_id: str):
         try:
