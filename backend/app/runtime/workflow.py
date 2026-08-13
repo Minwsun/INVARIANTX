@@ -189,7 +189,9 @@ def build_invariant_workflow(
 
     def merge_planner(ctx: Context, node_input: Any) -> WorkflowPacket:
         packet = WorkflowPacket.model_validate(ctx.state["workflow_packet"])
-        proposal = DelegationProposal.model_validate(node_input)
+        proposal = DelegationProposal.model_validate(
+            _normalize_delegation_proposal(node_input, packet.contract)
+        )
         return _attach_agent_telemetry(
             ctx,
             packet.model_copy(update={"delegation": proposal}),
@@ -752,6 +754,56 @@ def _normalize_intent_candidate(
 
 
 _ground_constraint_references = _normalize_intent_candidate
+
+
+def _normalize_delegation_proposal(
+    proposal: Any,
+    contract: IntentContract | None,
+) -> Any:
+    if not isinstance(proposal, dict) or contract is None:
+        return proposal
+    normalized = {**proposal}
+    contract_constraints = {item.id: item for item in contract.hard_constraints}
+    operators = {
+        "less_than_or_equal": "less_than_or_equal",
+        "less_than_or_equals": "less_than_or_equal",
+        "less_than_or_equal_to": "less_than_or_equal",
+        "lessthan_or_equal": "less_than_or_equal",
+        "at_most": "less_than_or_equal",
+        "at_or_below": "less_than_or_equal",
+        "<=": "less_than_or_equal",
+        "lte": "less_than_or_equal",
+        "preserve": "less_than_or_equal",
+        "preserve_current": "less_than_or_equal",
+        "preserve_baseline": "less_than_or_equal",
+        "greater_than_or_equal": "greater_than_or_equal",
+        "at_least": "greater_than_or_equal",
+        ">=": "greater_than_or_equal",
+        "gte": "greater_than_or_equal",
+        "equal": "equal",
+        "equals": "equal",
+        "==": "equal",
+    }
+    claims = []
+    for claim in proposal.get("constraint_claims", []):
+        item = dict(claim)
+        item["operator"] = operators.get(
+            str(item.get("operator", "")).casefold(),
+            item.get("operator"),
+        )
+        expected = contract_constraints.get(str(item.get("constraint_id", "")))
+        if expected is not None and item.get("value") is None and not item.get("value_ref"):
+            if expected.value_ref is not None:
+                item["value_ref"] = expected.value_ref
+            elif expected.value is not None:
+                item["value"] = expected.value
+        if item.get("value") is None:
+            item.pop("value", None)
+        if not item.get("value_ref"):
+            item.pop("value_ref", None)
+        claims.append(item)
+    normalized["constraint_claims"] = claims
+    return normalized
 
 
 def _json_compatible(value: Any) -> Any:

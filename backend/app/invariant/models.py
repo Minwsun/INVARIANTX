@@ -191,6 +191,26 @@ class ConstraintClaim(FrozenModel):
         return self
 
 
+class RawConstraintClaim(FrozenModel):
+    constraint_id: str = Field(min_length=1)
+    subject: str = Field(min_length=1)
+    metric: str = Field(min_length=1)
+    operator: str = Field(min_length=1)
+    value: float | None = None
+    value_ref: str | None = None
+
+
+class RawDelegationProposal(FrozenModel):
+    schema_version: Literal["1.0"] = "1.0"
+    task_id: str = Field(min_length=1)
+    contract_id: str = Field(min_length=1)
+    contract_version: PositiveInt
+    action: str = Field(min_length=1)
+    objective_refs: tuple[str, ...] = ()
+    constraint_claims: tuple[RawConstraintClaim, ...] = ()
+    semantic_invariant_refs: tuple[str, ...] = ()
+
+
 class DelegationProposal(FrozenModel):
     schema_version: Literal["1.0"] = "1.0"
     task_id: str = Field(min_length=1)

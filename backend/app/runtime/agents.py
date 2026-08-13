@@ -14,6 +14,7 @@ from google.genai import types
 from app.invariant.models import (
     ActionProposal,
     DelegationProposal,
+    RawDelegationProposal,
     RawIntentContractCandidate,
 )
 from app.runtime.models import ModelConfig, ModelRole
@@ -193,7 +194,7 @@ def build_agent_nodes(model_config: ModelConfig | None = None) -> AgentNodes:
                 "projection. Reference every relevant objective and hard or semantic "
                 "invariant. Do not call tools. Return only the supplied JSON schema."
             ),
-            output_schema=structured_output_schema(DelegationProposal),
+            output_schema=structured_output_schema(RawDelegationProposal),
             generate_content_config=config(400),
             after_model_callback=telemetry("planner_agent", ModelRole.PLANNER),
         ),

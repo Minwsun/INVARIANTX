@@ -21,6 +21,7 @@ from app.runtime.workflow import (
     WorkflowRequest,
     WorkflowResult,
     _ground_constraint_references,
+    _normalize_delegation_proposal,
     build_invariant_workflow,
 )
 
@@ -147,6 +148,39 @@ def test_compiler_normalizes_lte_cheaper_objective_to_reduction() -> None:
     )
 
     assert grounded["objectives"][0]["operator"] == "decrease_by"
+
+
+def test_planner_normalizes_claim_syntax_without_restoring_omissions() -> None:
+    contract = medical_logistics_contract()
+    normalized = _normalize_delegation_proposal(
+        {
+            "schema_version": "1.0",
+            "task_id": "task-1",
+            "contract_id": contract.id,
+            "contract_version": contract.version,
+            "action": "optimize routes",
+            "objective_refs": ["OBJ-1"],
+            "constraint_claims": [
+                {
+                    "constraint_id": "MEDICAL_SLA",
+                    "subject": "medical_orders",
+                    "metric": "delivery_delay",
+                    "operator": "preserve",
+                }
+            ],
+        },
+        contract,
+    )
+
+    claim = normalized["constraint_claims"][0]
+    assert claim["operator"] == "less_than_or_equal"
+    assert claim["value_ref"] == "baseline.medical_delay"
+
+    omitted = _normalize_delegation_proposal(
+        {"constraint_claims": []},
+        contract,
+    )
+    assert omitted["constraint_claims"] == []
 
 
 def test_compiler_normalizes_no_delay_to_baseline_constraint() -> None:
