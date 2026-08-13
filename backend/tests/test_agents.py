@@ -11,6 +11,7 @@ from app.runtime.agents import (
 from google.adk.models.llm_response import LlmResponse
 from google.genai import types
 from app.runtime.models import INTENT_MODEL, PLANNER_MODEL, WORKER_MODEL, ModelConfig
+from app.invariant.semantic import ModelCallRecord
 from app.runtime.workflow import WorkflowRequest
 
 
@@ -93,6 +94,12 @@ def test_model_execution_blocked_preserves_safe_failure_details() -> None:
     )
 
     assert error.failures[0]["error_type"] == "ValidationError"
+    assert ModelCallRecord(
+        model="gemma-4-31b-it",
+        outcome="FAILED",
+        error_type="ServerError",
+        error="503 unavailable",
+    ).error == "503 unavailable"
 
 
 def test_structured_response_keeps_first_complete_json_object() -> None:

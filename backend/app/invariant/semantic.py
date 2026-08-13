@@ -33,6 +33,7 @@ class ModelCallRecord(FrozenModel):
     cache_hit: bool = False
     escalation_reason: str | None = None
     error_type: str | None = None
+    error: str | None = Field(default=None, max_length=500)
 
 
 class SemanticCheckResult(FrozenModel):
