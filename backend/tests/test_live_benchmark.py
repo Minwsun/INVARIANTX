@@ -1,5 +1,5 @@
 from app.evaluation.live_corpus import LIVE_SCENARIOS
-from app.evaluation.live_benchmark import _failed_run, _scale_gate, _summarize
+from app.evaluation.live_benchmark import _existing_results, _failed_run, _scale_gate, _summarize
 
 
 def test_live_corpus_covers_five_natural_drift_categories() -> None:
@@ -122,3 +122,11 @@ def test_scale_gate_requires_clean_comparable_shared_contract_pairs() -> None:
 
     assert _scale_gate([pair], summary)["passed"] is True
     assert _scale_gate([{**pair, "same_contract": False}], summary)["passed"] is False
+
+
+def test_existing_results_supports_resumable_benchmark(tmp_path) -> None:
+    output = tmp_path / "live.json"
+    output.write_text('{"results":[{"repetition":1}]}', encoding="utf-8")
+
+    assert _existing_results(output) == [{"repetition": 1}]
+    assert _existing_results(tmp_path / "missing.json") == []

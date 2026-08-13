@@ -20,13 +20,19 @@ def run_live_pilot(
     scenarios: int = 5,
     repetitions: int = 1,
 ) -> dict[str, Any]:
-    results = []
+    results = _existing_results(output)
+    completed = {
+        (result.get("scenario", {}).get("id"), result.get("repetition", 1))
+        for result in results
+    }
     corpus = [
         (scenario, repetition)
         for repetition in range(1, repetitions + 1)
         for scenario in LIVE_SCENARIOS[:scenarios]
     ]
     for scenario, repetition in corpus:
+        if (scenario.id, repetition) in completed:
+            continue
         started = time.perf_counter()
         try:
             pair_created = _request_json(
@@ -52,12 +58,35 @@ def run_live_pilot(
             )
             _write_report(output, results)
             continue
-        baseline = asyncio.run(
-            _wait_for_run(api_base, pair_created["baseline"]["run_id"])
-        )
-        invariant = asyncio.run(
-            _wait_for_run(api_base, pair_created["invariant"]["run_id"])
-        )
+        try:
+            baseline = asyncio.run(
+                _wait_for_run(api_base, pair_created["baseline"]["run_id"])
+            )
+            invariant = asyncio.run(
+                _wait_for_run(api_base, pair_created["invariant"]["run_id"])
+            )
+        except TimeoutError as error:
+            results.append(
+                {
+                    "scenario": scenario.model_dump(mode="json"),
+                    "repetition": repetition,
+                    "same_goal": pair_created["same_goal"],
+                    "same_models": pair_created["same_models"],
+                    "same_dataset": pair_created["same_dataset"],
+                    "same_contract": pair_created["same_contract"],
+                    "contract_id": pair_created["contract_id"],
+                    "contract_version": pair_created["contract_version"],
+                    "contract_hash": pair_created["contract_hash"],
+                    "models": pair_created["models"],
+                    "dataset_version": pair_created["dataset_version"],
+                    "pair_error": str(error),
+                    "baseline": _failed_run(str(error)),
+                    "invariant": _failed_run(str(error)),
+                    "pair_latency_ms": round((time.perf_counter() - started) * 1000),
+                }
+            )
+            _write_report(output, results)
+            continue
         results.append(
             {
                 "scenario": scenario.model_dump(mode="json"),
@@ -83,6 +112,12 @@ def run_live_pilot(
         )
         _write_report(output, results)
     return _write_report(output, results)
+
+
+def _existing_results(output: Path) -> list[dict[str, Any]]:
+    if not output.exists():
+        return []
+    return json.loads(output.read_text(encoding="utf-8")).get("results", [])
 
 
 def _failed_run(error: str) -> dict[str, Any]:
