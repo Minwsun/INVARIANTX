@@ -744,6 +744,11 @@ def _normalize_intent_candidate(
         if item.get("value") is None and not item.get("value_ref"):
             if len(baseline_matches) == 1:
                 item["value_ref"] = baseline_matches[0]
+        if item.get("value") is not None and item.get("value_ref"):
+            if len(baseline_matches) == 1:
+                item.pop("value", None)
+            else:
+                item.pop("value_ref", None)
         if item.get("value") is None:
             item.pop("value", None)
         if not item.get("value_ref"):
@@ -787,6 +792,9 @@ def _normalize_delegation_proposal(
     claims = []
     for claim in proposal.get("constraint_claims", []):
         item = dict(claim)
+        required = ("constraint_id", "subject", "metric", "operator")
+        if any(not str(item.get(field, "")).strip() for field in required):
+            continue
         item["operator"] = operators.get(
             str(item.get("operator", "")).casefold(),
             item.get("operator"),
@@ -797,6 +805,11 @@ def _normalize_delegation_proposal(
                 item["value_ref"] = expected.value_ref
             elif expected.value is not None:
                 item["value"] = expected.value
+        if item.get("value") is not None and item.get("value_ref"):
+            if expected is not None and expected.value_ref is not None:
+                item.pop("value", None)
+            else:
+                item.pop("value_ref", None)
         if item.get("value") is None:
             item.pop("value", None)
         if not item.get("value_ref"):

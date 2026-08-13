@@ -150,6 +150,28 @@ def test_compiler_normalizes_lte_cheaper_objective_to_reduction() -> None:
     assert grounded["objectives"][0]["operator"] == "decrease_by"
 
 
+def test_compiler_prefers_grounded_reference_when_model_returns_two_values() -> None:
+    grounded = _ground_constraint_references(
+        {
+            "hard_constraints": [
+                {
+                    "id": "hc_1",
+                    "subject": "medical_orders",
+                    "metric": "delivery_delay",
+                    "operator": "less_than_or_equal",
+                    "value": 10,
+                    "value_ref": "baseline.delivery_delay",
+                    "source_span": "preserve current delivery SLA",
+                }
+            ]
+        },
+        {"baseline.delivery_delay": 10},
+    )
+
+    assert "value" not in grounded["hard_constraints"][0]
+    assert grounded["hard_constraints"][0]["value_ref"] == "baseline.delivery_delay"
+
+
 def test_planner_normalizes_claim_syntax_without_restoring_omissions() -> None:
     contract = medical_logistics_contract()
     normalized = _normalize_delegation_proposal(
@@ -181,6 +203,15 @@ def test_planner_normalizes_claim_syntax_without_restoring_omissions() -> None:
         contract,
     )
     assert omitted["constraint_claims"] == []
+
+
+def test_planner_drops_malformed_claim_for_gate_to_handle() -> None:
+    normalized = _normalize_delegation_proposal(
+        {"constraint_claims": [{"constraint_id": "MEDICAL_SLA"}]},
+        medical_logistics_contract(),
+    )
+
+    assert normalized["constraint_claims"] == []
 
 
 def test_compiler_normalizes_no_delay_to_baseline_constraint() -> None:

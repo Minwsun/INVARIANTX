@@ -192,20 +192,20 @@ class ConstraintClaim(FrozenModel):
 
 
 class RawConstraintClaim(FrozenModel):
-    constraint_id: str = Field(min_length=1)
-    subject: str = Field(min_length=1)
-    metric: str = Field(min_length=1)
-    operator: str = Field(min_length=1)
+    constraint_id: str = ""
+    subject: str = ""
+    metric: str = ""
+    operator: str = ""
     value: float | None = None
     value_ref: str | None = None
 
 
 class RawDelegationProposal(FrozenModel):
     schema_version: Literal["1.0"] = "1.0"
-    task_id: str = Field(min_length=1)
-    contract_id: str = Field(min_length=1)
-    contract_version: PositiveInt
-    action: str = Field(min_length=1)
+    task_id: str = ""
+    contract_id: str = ""
+    contract_version: int = 0
+    action: str = ""
     objective_refs: tuple[str, ...] = ()
     constraint_claims: tuple[RawConstraintClaim, ...] = ()
     semantic_invariant_refs: tuple[str, ...] = ()
