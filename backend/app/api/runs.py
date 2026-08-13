@@ -17,6 +17,15 @@ class RunCreateRequest(BaseModel):
     goal: str = Field(min_length=1, max_length=4000)
 
 
+class PairedRunResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    same_goal: bool = True
+    same_models: bool = True
+    same_dataset: bool = True
+    baseline: object
+    invariant: object
+
+
 def create_runs_router(service: RunService) -> APIRouter:
     router = APIRouter(prefix="/runs", tags=["runs"])
     public_demo_requests: dict[str, float] = {}
@@ -89,6 +98,24 @@ def create_runs_router(service: RunService) -> APIRouter:
                 "Reduce logistics cost by 15% without delaying medical orders.",
                 scenario="deliberate_compare",
             )
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+
+    @router.post(
+        "/live/paired",
+        status_code=status.HTTP_202_ACCEPTED,
+        response_model=PairedRunResponse,
+    )
+    async def create_live_paired_run(
+        body: RunCreateRequest,
+        demo_key: str | None = Header(default=None, alias="X-INVARIANT-DEMO-KEY"),
+    ):
+        if not demo_key_matches(demo_key):
+            raise HTTPException(status_code=403, detail="invalid demo credentials")
+        try:
+            baseline = await service.create(body.goal, fleet_mode="ungated")
+            invariant = await service.create(body.goal, fleet_mode="invariant")
+            return PairedRunResponse(baseline=baseline, invariant=invariant)
         except ValueError as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
 

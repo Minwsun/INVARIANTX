@@ -35,6 +35,7 @@ class RunSnapshot(FrozenModel):
     status: RunStatus
     goal: str
     scenario: str = "standard"
+    fleet_mode: str = "invariant"
     contract_id: str | None = None
     contract_version: int | None = None
     repair_count: int = 0
@@ -70,6 +71,7 @@ class RunService:
         goal: str,
         *,
         scenario: str = "standard",
+        fleet_mode: str = "invariant",
     ) -> RunSnapshot:
         if self.agent_nodes is None and not os.getenv("GEMINI_API_KEY"):
             raise ValueError("GEMINI_API_KEY is required for real agent execution")
@@ -78,6 +80,7 @@ class RunService:
             run_id=run_id,
             goal=goal,
             scenario=scenario,
+            fleet_mode=fleet_mode,
             state=self.adapter.baseline_state(),
         )
         snapshot = RunSnapshot(
@@ -85,6 +88,7 @@ class RunService:
             status=RunStatus.CREATED,
             goal=goal,
             scenario=scenario,
+            fleet_mode=fleet_mode,
         )
         record = _RunRecord(snapshot=snapshot, request=request)
         self._runs[run_id] = record
@@ -168,6 +172,7 @@ class RunService:
             action_decision_sink=persist_action_decision,
             contract_sink=persist_contract,
             agent_nodes=self.agent_nodes,
+            fleet_mode=record.request.fleet_mode,
         )
         runner = InMemoryRunner(node=workflow, app_name="invariant")
         try:

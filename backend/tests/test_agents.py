@@ -34,8 +34,15 @@ def test_workflow_request_accepts_only_goal_and_runtime_state() -> None:
         state={},
     )
 
-    assert set(request.model_dump()) == {"run_id", "goal", "state", "scenario"}
+    assert set(request.model_dump()) == {
+        "run_id",
+        "goal",
+        "state",
+        "scenario",
+        "fleet_mode",
+    }
     assert request.scenario == "standard"
+    assert request.fleet_mode == "invariant"
 
 
 def test_structured_output_schema_removes_unsupported_properties() -> None:

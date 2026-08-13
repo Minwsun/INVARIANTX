@@ -288,6 +288,43 @@ def test_public_compare_is_disabled_by_default(monkeypatch) -> None:
     assert response.status_code == 404
 
 
+def test_live_paired_endpoint_uses_same_goal_models_and_dataset(monkeypatch) -> None:
+    async def run():
+        monkeypatch.setenv("INVARIANT_DEMO_KEY", "demo-secret")
+        service = RunService(agent_nodes=fake_agent_nodes())
+        app = create_app(service)
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            denied = await client.post(
+                "/runs/live/paired",
+                json={"goal": "Reduce cost without delaying medical orders"},
+            )
+            created = await client.post(
+                "/runs/live/paired",
+                headers={"X-INVARIANT-DEMO-KEY": "demo-secret"},
+                json={"goal": "Reduce cost without delaying medical orders"},
+            )
+            payload = created.json()
+            baseline = await wait_for_terminal(client, payload["baseline"]["run_id"])
+            invariant = await wait_for_terminal(client, payload["invariant"]["run_id"])
+            return denied, created, payload, baseline, invariant
+
+    denied, created, payload, baseline, invariant = asyncio.run(run())
+
+    assert denied.status_code == 403
+    assert created.status_code == 202
+    assert payload["same_goal"] is True
+    assert payload["same_models"] is True
+    assert payload["same_dataset"] is True
+    assert baseline["fleet_mode"] == "ungated"
+    assert invariant["fleet_mode"] == "invariant"
+    assert baseline["goal"] == invariant["goal"]
+    assert baseline["llm_call_count"] == 3
+    assert invariant["llm_call_count"] == 3
+
+
 def test_standard_run_never_emits_demo_drift_event() -> None:
     async def run():
         service = RunService(agent_nodes=fake_agent_nodes())

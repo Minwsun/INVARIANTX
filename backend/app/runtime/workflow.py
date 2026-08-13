@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Awaitable, Callable
 from typing import Any, Literal
 
@@ -45,6 +46,7 @@ class WorkflowRequest(FrozenModel):
         "deliberate_tool_timeout",
         "deliberate_compare",
     ] = "standard"
+    fleet_mode: Literal["invariant", "ungated"] = "invariant"
 
 
 class WorkflowPacket(FrozenModel):
@@ -88,6 +90,7 @@ def build_invariant_workflow(
     action_decision_sink: Callable[[GateVerdict], Awaitable[None]] | None = None,
     contract_sink: Callable[[IntentContract], Awaitable[None]] | None = None,
     agent_nodes: AgentNodes | None = None,
+    fleet_mode: Literal["invariant", "ungated"] = "invariant",
 ) -> Workflow:
     if not 1 <= max_llm_calls <= 5:
         raise ValueError("max_llm_calls must be between 1 and 5")
@@ -437,6 +440,27 @@ def build_invariant_workflow(
         )
         return node_input.model_copy(update={"tool_result": result})
 
+    async def execute_tool_ungated(node_input: WorkflowPacket) -> WorkflowPacket:
+        if node_input.action is None:
+            return node_input.model_copy(update={"status": "BLOCKED"})
+        tool_entry = tools.get(node_input.action.tool_name)
+        if tool_entry is None:
+            return node_input.model_copy(update={"status": "BLOCKED"})
+        tool, _ = tool_entry
+        try:
+            raw_result = await asyncio.wait_for(
+                asyncio.to_thread(tool, **node_input.action.arguments),
+                timeout=10,
+            )
+        except (TimeoutError, TypeError, ValueError):
+            return node_input.model_copy(update={"status": "BLOCKED"})
+        result = (
+            receipt_builder(raw_result, node_input.request.state)
+            if receipt_builder is not None
+            else raw_result
+        )
+        return node_input.model_copy(update={"tool_result": result})
+
     def validate_result(node_input: WorkflowPacket) -> WorkflowPacket:
         validation = validate_execution(
             node_input.contract,
@@ -530,6 +554,34 @@ def build_invariant_workflow(
                     ModelCallRecord.model_validate(telemetry),
                 ),
             }
+        )
+
+    if fleet_mode == "ungated":
+        return Workflow(
+            name="ungated_workflow",
+            edges=[
+                (
+                    START,
+                    parse_request,
+                    remember_request,
+                    reserve_compiler_call,
+                    prepare_intent,
+                    nodes.intent_compiler,
+                    register_contract,
+                    remember_packet,
+                    reserve_planner_call,
+                    prepare_planner,
+                    nodes.planner,
+                    merge_planner,
+                    reserve_worker_call,
+                    prepare_worker,
+                    nodes.worker,
+                    merge_worker,
+                    execute_tool_ungated,
+                    validate_result,
+                    finalize,
+                ),
+            ],
         )
 
     return Workflow(
