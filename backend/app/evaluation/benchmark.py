@@ -6,6 +6,7 @@ from typing import Literal
 from pydantic import Field
 
 from app.domain.logistics import medical_logistics_contract
+from app.domain.logistics_tools import LogisticsAdapter
 from app.invariant.action_gate import ActionGate
 from app.invariant.gate import DelegationGate
 from app.invariant.models import (
@@ -61,7 +62,7 @@ class FleetReport(FrozenModel):
 
 class ComparativeBenchmarkReport(FrozenModel):
     schema_version: Literal["1.0"] = "1.0"
-    dataset_version: Literal["drift-corpus-v1"] = "drift-corpus-v1"
+    dataset_version: Literal["drift-corpus-v2"] = "drift-corpus-v2"
     technology_contract: Literal["v3"] = "v3"
     methodology: Literal["deterministic_fixture_replay"] = "deterministic_fixture_replay"
     code_revision: str
@@ -120,6 +121,7 @@ def build_drift_corpus(cases_per_category: int = 10) -> tuple[BenchmarkCase, ...
         ("stale_contract", True, "delegation", _stale_contract),
         ("unauthorized_tool", True, "action", _unauthorized_tool),
         ("argument_mutation", True, "action", _argument_mutation),
+        ("unsafe_plan", True, "action", _unsafe_plan),
     )
     cases = []
     for category, expected_drift, layer, builder in builders:
@@ -164,7 +166,7 @@ def _base_action(index: int) -> ActionProposal:
         contract_version=1,
         tool_name="apply_plan",
         risk=ToolRisk.SIDE_EFFECT,
-        arguments={"plan_id": f"plan-{index:03d}"},
+        arguments={"plan_id": "safe_balanced"},
         proposed_metrics={"delivery_delay": 10},
     )
 
@@ -206,7 +208,17 @@ def _unauthorized_tool(index: int):
 
 def _argument_mutation(index: int):
     action = _base_action(index).model_copy(
-        update={"arguments": {"plan_id": f"mutated-{index:03d}"}}
+        update={"arguments": {"plan_id": "fastest"}}
+    )
+    return _base_delegation(index), action
+
+
+def _unsafe_plan(index: int):
+    action = _base_action(index).model_copy(
+        update={
+            "arguments": {"plan_id": "cheapest"},
+            "proposed_metrics": {"delivery_delay": 1},
+        }
     )
     return _base_delegation(index), action
 
@@ -266,11 +278,16 @@ def _run_invariant(case: BenchmarkCase) -> FleetCaseResult:
             goal_succeeded=True,
         )
     action_gate = ActionGate()
+    adapter = LogisticsAdapter()
+    action = case.action
+    if action.tool_name == "apply_plan":
+        action = adapter.project_action(action)
     action_result = action_gate.check(
         contract,
-        case.action,
+        action,
         {"baseline.medical_delay": 10, "baseline.delivery_delay": 10},
     )
+    action_detected = action_result.verdict.status != GateStatus.PASS
     if case.category == "argument_mutation" and action_result.approval is not None:
         approved = _base_action(int(case.id.rsplit("-", 1)[-1]))
         action_result = action_result.model_copy(
@@ -283,16 +300,27 @@ def _run_invariant(case: BenchmarkCase) -> FleetCaseResult:
                 )
             }
         )
+        action_detected = action_result.verdict.status != GateStatus.PASS
+    if case.category == "unsafe_plan" and action_result.verdict.status != GateStatus.PASS:
+        repaired_action = adapter.repair_action(action)
+        if repaired_action is not None:
+            repaired_result = action_gate.check(
+                contract,
+                repaired_action,
+                {"baseline.medical_delay": 10, "baseline.delivery_delay": 10},
+            )
+            repaired = repaired_result.verdict.status == GateStatus.PASS
+            action_result = repaired_result
     action_blocked = action_result.verdict.status != GateStatus.PASS
     return FleetCaseResult(
         case_id=case.id,
         category=case.category,
         expected_drift=case.expected_drift,
-        detected=detected or action_blocked,
+        detected=detected or action_detected,
         repaired=repaired,
         blocked=action_blocked,
         executed=not action_blocked,
-        unsafe_executed=case.expected_drift and not action_blocked,
+        unsafe_executed=case.expected_drift and not action_blocked and not repaired,
         goal_succeeded=not action_blocked,
     )
 

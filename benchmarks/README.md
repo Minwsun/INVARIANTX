@@ -5,12 +5,14 @@ Benchmark Layer A compares an ungated execution baseline with INVARIANT v3 over 
 ## Method
 
 - `deterministic_fixture_replay`; no live model calls.
-- Eight categories, ten cases each by default.
+- Nine categories, ten cases each by default.
 - Baseline represents execution without Delegation Gate, Action Gate, repair, or approval binding.
 - INVARIANT runs the production deterministic gates and repair policy.
 - Results measure safety-layer behavior, not Gemini/Gemma semantic quality, latency, token usage, or monetary cost.
 
-Categories: valid delegation, omission, weakening, contradiction, objective substitution, stale contract, unauthorized tool, and argument mutation.
+Categories: valid delegation, omission, weakening, contradiction, objective substitution, stale contract, unauthorized tool, argument mutation, and unsafe candidate plan.
+
+Unsafe-plan cases use the production logistics projection boundary: Worker claims are replaced by simulator measurements, Action Gate blocks the unsafe plan, deterministic Action Repair selects a safe candidate, then Action Gate rechecks it.
 
 ```powershell
 cd backend

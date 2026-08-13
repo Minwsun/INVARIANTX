@@ -4,7 +4,8 @@ from app.evaluation import run_comparative_benchmark
 def test_comparative_benchmark_measures_baseline_against_invariant() -> None:
     report = run_comparative_benchmark(cases_per_category=2)
 
-    assert report.corpus_size == 16
+    assert report.corpus_size == 18
+    assert report.dataset_version == "drift-corpus-v2"
     assert report.methodology == "deterministic_fixture_replay"
     assert report.model_routing["planner"] == "gemma-4-31b-it"
     assert report.baseline.metrics.drift_detection_recall == 0
