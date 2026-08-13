@@ -29,6 +29,9 @@ class DomainAdapter(ABC):
     def project_action(self, proposal: ActionProposal) -> ActionProposal:
         return proposal
 
+    def repair_action(self, proposal: ActionProposal) -> ActionProposal | None:
+        return None
+
     @abstractmethod
     def build_receipt(
         self,

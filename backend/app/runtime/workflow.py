@@ -81,6 +81,7 @@ def build_invariant_workflow(
     intent_normalizer: Callable[[Any, dict[str, float]], Any] | None = None,
     receipt_builder: Callable[[Any, dict[str, float]], ExecutionReceipt] | None = None,
     action_projector: Callable[[ActionProposal], ActionProposal] | None = None,
+    action_repairer: Callable[[ActionProposal], ActionProposal | None] | None = None,
     max_repairs: int = 2,
     max_llm_calls: int = 5,
     semantic_verifier: SemanticVerifier | None = None,
@@ -381,6 +382,19 @@ def build_invariant_workflow(
             packet = packet.model_copy(update={"status": "BLOCKED"})
         return Event(output=packet, route=result.verdict.status.value)
 
+    def repair_action(node_input: WorkflowPacket) -> Event:
+        if node_input.action is None or action_repairer is None:
+            return Event(output=node_input, route=GateStatus.BLOCK.value)
+        repaired = action_repairer(node_input.action)
+        if repaired is None or repaired.arguments == node_input.action.arguments:
+            return Event(output=node_input, route=GateStatus.BLOCK.value)
+        return Event(
+            output=node_input.model_copy(
+                update={"action": repaired, "approval": None, "violations": ()}
+            ),
+            route="RECHECK",
+        )
+
     async def execute_tool(node_input: WorkflowPacket) -> WorkflowPacket:
         if node_input.action is None:
             return node_input.model_copy(update={"status": "BLOCKED"})
@@ -559,6 +573,13 @@ def build_invariant_workflow(
                 check_action,
                 {
                     GateStatus.PASS.value: execute_tool,
+                    GateStatus.BLOCK.value: repair_action,
+                },
+            ),
+            (
+                repair_action,
+                {
+                    "RECHECK": check_action,
                     GateStatus.BLOCK.value: finalize,
                 },
             ),

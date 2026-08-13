@@ -164,6 +164,7 @@ class RunService:
             intent_normalizer=self.adapter.normalize_intent,
             receipt_builder=self.adapter.build_receipt,
             action_projector=self.adapter.project_action,
+            action_repairer=self.adapter.repair_action,
             action_decision_sink=persist_action_decision,
             contract_sink=persist_contract,
             agent_nodes=self.agent_nodes,
@@ -314,6 +315,7 @@ class RunService:
             "inject_demo_drift": EventType.DEMO_DRIFT_INJECTED,
             "repair_task": EventType.REPAIR_ACCEPTED,
             "worker_agent": EventType.ACTION_PROPOSED,
+            "repair_action": EventType.ACTION_REPAIRED,
             "execute_tool": EventType.TOOL_COMPLETED,
             "validate_result": EventType.VALIDATION_COMPLETED,
         }
@@ -376,6 +378,8 @@ class RunService:
                 payload["input"] = packet.delegation.model_dump(mode="json")
                 payload["output"] = packet.action.model_dump(mode="json")
                 payload["model"] = _model_call_payload(packet, "worker")
+            elif node_name == "repair_action" and packet and packet.action:
+                payload["repaired_action"] = packet.action.model_dump(mode="json")
             elif node_name == "execute_tool" and packet:
                 receipt = packet.tool_result
                 if getattr(receipt, "status", None) == "unknown":

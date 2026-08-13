@@ -126,7 +126,7 @@ export default function Home() {
     const stream = new EventSource(`${API_BASE}/runs/${runId}/events`);
     source.current = stream;
     stream.onmessage = (message) => consumeEvent(message.data, runId);
-    for (const type of ["RUN_CREATED", "RUN_STARTED", "INTENT_COMPILED", "CONTRACT_REGISTERED", "TASK_PROPOSED", "DEMO_DRIFT_INJECTED", "DRIFT_DETECTED", "REPAIR_ACCEPTED", "GATE_PASSED", "ACTION_PROPOSED", "TOOL_COMPLETED", "VALIDATION_COMPLETED", "RUN_COMPLETED", "RUN_FAILED", "ACTION_BLOCKED", "RECEIPT_REJECTED", "TOOL_TIMED_OUT"]) {
+    for (const type of ["RUN_CREATED", "RUN_STARTED", "INTENT_COMPILED", "CONTRACT_REGISTERED", "TASK_PROPOSED", "DEMO_DRIFT_INJECTED", "DRIFT_DETECTED", "REPAIR_ACCEPTED", "GATE_PASSED", "ACTION_PROPOSED", "ACTION_REPAIRED", "TOOL_COMPLETED", "VALIDATION_COMPLETED", "RUN_COMPLETED", "RUN_FAILED", "ACTION_BLOCKED", "RECEIPT_REJECTED", "TOOL_TIMED_OUT"]) {
       stream.addEventListener(type, (message) => consumeEvent((message as MessageEvent).data, runId));
     }
   }

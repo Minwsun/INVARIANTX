@@ -80,3 +80,10 @@ class LogisticsAdapter(DomainAdapter):
         return proposal.model_copy(
             update={"proposed_metrics": projection["actual_metrics"]}
         )
+
+    def repair_action(self, proposal: ActionProposal) -> ActionProposal | None:
+        if proposal.tool_name != "apply_plan":
+            return None
+        return self.project_action(
+            proposal.model_copy(update={"arguments": {"plan_id": "safe_balanced"}})
+        )

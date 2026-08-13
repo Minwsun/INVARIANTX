@@ -70,3 +70,22 @@ def test_action_gate_uses_simulator_projection_to_block_unsafe_plan() -> None:
 
     assert result.verdict.status == "BLOCK"
     assert result.approval is None
+
+
+def test_logistics_adapter_repairs_unsafe_plan_deterministically() -> None:
+    adapter = LogisticsAdapter()
+    unsafe = ActionProposal(
+        action_id="A-1",
+        contract_id="I-001",
+        contract_version=1,
+        tool_name="apply_plan",
+        risk=ToolRisk.SIDE_EFFECT,
+        arguments={"plan_id": "cheapest"},
+        proposed_metrics={},
+    )
+
+    repaired = adapter.repair_action(unsafe)
+
+    assert repaired is not None
+    assert repaired.arguments == {"plan_id": "safe_balanced"}
+    assert repaired.proposed_metrics["delivery_delay"] == 9
