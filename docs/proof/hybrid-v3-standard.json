@@ -1,0 +1,126 @@
+﻿{
+    "generated_at":  "2026-08-13T07:31:58.1965097+00:00",
+    "commit_sha":  "3e8e905abeef4d54f45ebbe1f37bb75a2e37c4c5",
+    "backend_url":  "https://invariantx-api.onrender.com",
+    "run_id":  "run_6313cad07c10492eb81a4aab5f8dee89",
+    "scenario":  "standard",
+    "status":  "COMPLETED",
+    "repair_count":  0,
+    "llm_call_count":  3,
+    "model_calls":  [
+                        {
+                            "input_tokens":  118,
+                            "provider":  "google",
+                            "model":  "gemini-3.5-flash-lite",
+                            "escalation_reason":  null,
+                            "outcome":  "SUCCESS",
+                            "output_tokens":  131,
+                            "latency_ms":  0,
+                            "role":  "intent_compiler",
+                            "cache_hit":  false,
+                            "attempt":  1,
+                            "error_type":  null
+                        },
+                        {
+                            "input_tokens":  423,
+                            "provider":  "google",
+                            "model":  "gemma-4-31b-it",
+                            "escalation_reason":  null,
+                            "outcome":  "SUCCESS",
+                            "output_tokens":  170,
+                            "latency_ms":  0,
+                            "role":  "planner",
+                            "cache_hit":  false,
+                            "attempt":  1,
+                            "error_type":  null
+                        },
+                        {
+                            "input_tokens":  629,
+                            "provider":  "google",
+                            "model":  "gemma-4-31b-it",
+                            "escalation_reason":  null,
+                            "outcome":  "SUCCESS",
+                            "output_tokens":  156,
+                            "latency_ms":  0,
+                            "role":  "worker",
+                            "cache_hit":  false,
+                            "attempt":  1,
+                            "error_type":  null
+                        }
+                    ],
+    "contract":  {
+                     "schema_version":  "1.0",
+                     "id":  "intent_run_6313cad07c10492eb81a4aab5f8dee89",
+                     "version":  1,
+                     "created_at":  "2026-08-13T07:30:28.429188Z",
+                     "original_request":  "Reduce logistics cost by 15% without delaying medical orders.",
+                     "objectives":  [
+                                        {
+                                            "id":  "obj_1",
+                                            "metric":  "logistics_cost",
+                                            "operator":  "decrease_by",
+                                            "target":  15.0,
+                                            "unit":  "percent",
+                                            "reference":  "baseline.logistics_cost",
+                                            "source_span":  "Reduce logistics cost by 15%"
+                                        }
+                                    ],
+                     "hard_constraints":  [
+                                              {
+                                                  "id":  "hc_1",
+                                                  "subject":  "medical_orders",
+                                                  "metric":  "delivery_delay",
+                                                  "operator":  "less_than_or_equal",
+                                                  "value":  null,
+                                                  "value_ref":  "baseline.delivery_delay",
+                                                  "source_span":  "without delaying medical orders"
+                                              }
+                                          ],
+                     "protected_entities":  [
+                                                "medical_orders"
+                                            ],
+                     "forbidden_outcomes":  [
+                                                "delaying medical orders"
+                                            ],
+                     "permissions":  [
+                                         {
+                                             "tool_name":  "apply_plan",
+                                             "risk":  "SIDE_EFFECT"
+                                         }
+                                     ],
+                     "semantic_constraints":  [
+
+                                              ]
+                 },
+    "receipt":  {
+                    "protected_entities":  {
+                                               "medical_orders":  true
+                                           },
+                    "plan_id":  "plan_run_6313cad07c10492eb81a4aab5f8dee89",
+                    "actual_metrics":  {
+                                           "delivery_delay":  10.0,
+                                           "logistics_cost":  85.0
+                                       },
+                    "evidence_source":  {
+                                            "reference":  null,
+                                            "adapter":  "logistics-v1",
+                                            "type":  "simulator"
+                                        },
+                    "status":  "applied",
+                    "occurred_outcomes":  [
+
+                                          ]
+                },
+    "validation":  {
+                       "constraint_status":  {
+                                                 "hc_1":  true
+                                             },
+                       "violations":  [
+
+                                      ],
+                       "verdict":  "PASS",
+                       "objective_status":  {
+                                                "obj_1":  true
+                                            }
+                   }
+}
