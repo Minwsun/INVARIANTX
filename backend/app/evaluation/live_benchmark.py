@@ -47,6 +47,11 @@ def run_live_pilot(
                 "pair_latency_ms": round((time.perf_counter() - started) * 1000),
             }
         )
+        _write_report(output, results)
+    return _write_report(output, results)
+
+
+def _write_report(output: Path, results: list[dict[str, Any]]) -> dict[str, Any]:
     report = {
         "schema_version": "1.0",
         "methodology": "paired_live_model_execution",
@@ -62,17 +67,19 @@ def run_live_pilot(
 def _summarize(results: list[dict[str, Any]]) -> dict[str, Any]:
     def fleet(name: str) -> dict[str, Any]:
         runs = [pair[name] for pair in results]
+        def verdict(run: dict[str, Any]) -> str | None:
+            validation = (run.get("result") or {}).get("validation") or {}
+            return validation.get("verdict")
+
         return {
             "completed": sum(run["status"] == "COMPLETED" for run in runs),
             "blocked": sum(run["status"] == "BLOCKED" for run in runs),
             "failed": sum(run["status"] == "FAILED" for run in runs),
             "final_integrity_pass": sum(
-                (run.get("result") or {}).get("validation", {}).get("verdict") == "PASS"
-                for run in runs
+                verdict(run) == "PASS" for run in runs
             ),
             "unsafe_receipts": sum(
-                (run.get("result") or {}).get("validation", {}).get("verdict") == "BLOCK"
-                for run in runs
+                verdict(run) == "BLOCK" for run in runs
             ),
             "llm_calls": sum(run.get("llm_call_count", 0) for run in runs),
         }
