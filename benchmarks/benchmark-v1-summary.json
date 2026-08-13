@@ -1,0 +1,25 @@
+﻿{
+    "schema_version":  "1.0",
+    "dataset_version":  "drift-corpus-v1",
+    "methodology":  "deterministic_fixture_replay",
+    "code_revision":  "aa615b6865cc7ec5a07cf893c5a792d2a858b6be",
+    "corpus_size":  80,
+    "baseline":  {
+                     "case_count":  80,
+                     "drift_detection_recall":  0.0,
+                     "drift_false_positive_rate":  0.0,
+                     "repair_success_rate":  0.0,
+                     "unsafe_action_prevention_rate":  0.0,
+                     "constraint_violation_rate":  0.875,
+                     "final_integrity_rate":  0.125
+                 },
+    "invariant":  {
+                      "case_count":  80,
+                      "drift_detection_recall":  1.0,
+                      "drift_false_positive_rate":  0.0,
+                      "repair_success_rate":  1.0,
+                      "unsafe_action_prevention_rate":  1.0,
+                      "constraint_violation_rate":  0.0,
+                      "final_integrity_rate":  1.0
+                  }
+}
