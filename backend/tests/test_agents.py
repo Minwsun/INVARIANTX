@@ -2,6 +2,7 @@ from google.adk.agents import LlmAgent
 
 from app.invariant.models import ActionProposal, IntentContractCandidate
 from app.runtime.agents import (
+    ModelExecutionBlocked,
     build_agent_nodes,
     structured_output_schema,
     worker_action_schema,
@@ -79,3 +80,12 @@ def test_model_config_reads_role_specific_environment(monkeypatch) -> None:
     assert config.intent_compiler == "gemini-3.5-flash"
     assert config.planner == PLANNER_MODEL
     assert config.worker == WORKER_MODEL
+
+
+def test_model_execution_blocked_preserves_safe_failure_details() -> None:
+    error = ModelExecutionBlocked(
+        "planner failed",
+        failures=[{"error_type": "ValidationError", "error": "invalid schema"}],
+    )
+
+    assert error.failures[0]["error_type"] == "ValidationError"

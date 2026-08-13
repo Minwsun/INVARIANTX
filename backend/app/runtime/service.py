@@ -295,6 +295,10 @@ class RunService:
             await self._save_snapshot(record)
             await self.journal.append(run_id, EventType.RUN_CANCELLED, "runtime")
         except ModelExecutionBlocked as error:
+            failure_payload = {
+                "error": str(error),
+                "failures": error.failures,
+            }
             record.snapshot = record.snapshot.model_copy(
                 update={"status": RunStatus.BLOCKED, "error": str(error)}
             )
@@ -303,7 +307,7 @@ class RunService:
                 run_id,
                 EventType.MODEL_FAILED,
                 "runtime",
-                {"error": str(error)},
+                failure_payload,
             )
             await self.journal.append(
                 run_id,

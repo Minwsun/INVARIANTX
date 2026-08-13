@@ -28,7 +28,9 @@ class AgentNodes:
 
 
 class ModelExecutionBlocked(RuntimeError):
-    pass
+    def __init__(self, message: str, *, failures: list[dict[str, Any]] | None = None) -> None:
+        super().__init__(message)
+        self.failures = failures or []
 
 
 class RetryingLlmAgent(LlmAgent):
@@ -56,17 +58,20 @@ class RetryingLlmAgent(LlmAgent):
                         "attempt": attempt,
                         "outcome": "FAILED",
                         "error_type": type(error).__name__,
+                        "error": str(error)[:500],
                     }
                 )
                 ctx.state[f"model_call_failures.{self.name}"] = failures
                 if attempt >= self.max_attempts:
                     raise ModelExecutionBlocked(
-                        f"{self.name} failed after {attempt} attempts"
+                        f"{self.name} failed after {attempt} attempts",
+                        failures=failures,
                     ) from error
                 calls = int(ctx.state.get("llm_call_count", 0))
                 if calls >= 5:
                     raise ModelExecutionBlocked(
-                        "LLM call budget exhausted before retry"
+                        "LLM call budget exhausted before retry",
+                        failures=failures,
                     ) from error
                 ctx.state["llm_call_count"] = calls + 1
 
