@@ -11,13 +11,15 @@ Feature freeze requires production evidence from the deployed Render revision.
 - [x] Deliberate omission emits drift detection, deterministic repair, recheck, and final PASS.
 - [x] Receipt evidence source is `simulator` / `logistics-v1`.
 - [x] Firestore persists run, immutable contract, ordered events, telemetry, receipt, and validation.
-- [ ] Dashboard screenshot shows hybrid routing and terminal integrity.
-- [ ] Tool timeout fixture produces `UNKNOWN` evidence and terminal `BLOCKED`.
+- [x] Dashboard screenshot shows hybrid routing and terminal integrity.
+- [x] Tool timeout fixture produces `UNKNOWN` evidence and terminal `BLOCKED`.
 - [x] Backend tests, frontend tests, frontend build, and CI pass.
 
 Production artifacts:
 
 - Standard hybrid run: `hybrid-v3-standard.json`.
 - Deliberate drift run: `hybrid-v3-drift.json`.
+- Tool timeout run: `hybrid-v3-tool-timeout.json`.
+- Hybrid dashboard: `hybrid-v3-dashboard.png`.
 
-Do not begin benchmark work until every item is checked with real production artifacts.
+Feature Freeze v3 is complete. Benchmark v1 remains Layer A deterministic safety evaluation; live-model efficiency evaluation is Layer B.

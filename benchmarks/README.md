@@ -1,6 +1,6 @@
-# Benchmark v1
+# Benchmark Layer A — Deterministic Safety v1
 
-Benchmark v1 compares an ungated execution baseline with INVARIANT v3 over the same typed corruption corpus.
+Benchmark Layer A compares an ungated execution baseline with INVARIANT v3 over the same typed corruption corpus.
 
 ## Method
 
@@ -20,4 +20,4 @@ cd backend
   --output ..\benchmarks\benchmark-v1.json
 ```
 
-The generated JSON is reproducible except for `generated_at`. Live hybrid fleet efficiency benchmarking is a separate experiment and must not be inferred from this report.
+The generated JSON is reproducible except for `generated_at`. Benchmark Layer B will measure live Gemini-only versus Gemini + Gemma quality, latency, tokens, calls, and estimated cost. Those values must not be inferred from Layer A.

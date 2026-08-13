@@ -1,0 +1,84 @@
+﻿{
+    "generated_at":  "2026-08-13T09:08:40.7527947+00:00",
+    "commit_sha":  "4db7b2e1663aea1e55686f0771f6a948eec0a69c",
+    "backend_url":  "https://invariantx-api.onrender.com",
+    "run_id":  "run_ab931e2815c7486599f0ca93fdca711b",
+    "scenario":  "deliberate_tool_timeout",
+    "status":  "BLOCKED",
+    "llm_call_count":  3,
+    "model_calls":  [
+                        {
+                            "role":  "intent_compiler",
+                            "provider":  "google",
+                            "model":  "gemini-3.5-flash-lite",
+                            "attempt":  1,
+                            "outcome":  "SUCCESS",
+                            "input_tokens":  118,
+                            "output_tokens":  231,
+                            "latency_ms":  0,
+                            "cache_hit":  false,
+                            "escalation_reason":  null,
+                            "error_type":  null
+                        },
+                        {
+                            "role":  "planner",
+                            "provider":  "google",
+                            "model":  "gemma-4-31b-it",
+                            "attempt":  1,
+                            "outcome":  "SUCCESS",
+                            "input_tokens":  427,
+                            "output_tokens":  174,
+                            "latency_ms":  0,
+                            "cache_hit":  false,
+                            "escalation_reason":  null,
+                            "error_type":  null
+                        },
+                        {
+                            "role":  "worker",
+                            "provider":  "google",
+                            "model":  "gemma-4-31b-it",
+                            "attempt":  1,
+                            "outcome":  "SUCCESS",
+                            "input_tokens":  635,
+                            "output_tokens":  162,
+                            "latency_ms":  0,
+                            "cache_hit":  false,
+                            "escalation_reason":  null,
+                            "error_type":  null
+                        }
+                    ],
+    "receipt":  {
+                    "status":  "unknown",
+                    "plan_id":  "task_run_ab931e2815c7486599f0ca93fdca711b",
+                    "actual_metrics":  {
+
+                                       },
+                    "occurred_outcomes":  [
+
+                                          ],
+                    "protected_entities":  {
+
+                                           },
+                    "evidence_source":  {
+                                            "type":  "unknown",
+                                            "adapter":  "logistics-v1",
+                                            "reference":  "tool_timeout"
+                                        }
+                },
+    "validation":  {
+                       "verdict":  "BLOCK",
+                       "objective_status":  {
+
+                                            },
+                       "constraint_status":  {
+
+                                             },
+                       "violations":  [
+                                          {
+                                              "drift_type":  "INSUFFICIENT_EVIDENCE",
+                                              "reference_id":  "execution_receipt",
+                                              "evidence":  "tool status is \u0027unknown\u0027, expected \u0027applied\u0027"
+                                          }
+                                      ]
+                   }
+}

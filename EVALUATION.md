@@ -111,6 +111,10 @@ Model-quality thresholds for semantic recall and false-positive rate are recorde
 
 Each benchmark result records code revision, Technology Contract version, model IDs, prompt versions, dataset version, metric values, failed scenario IDs, token usage, latency, and cost estimate.
 
-## Benchmark v1 Boundary
+## Benchmark Layer A Boundary
 
 The first comparative report uses deterministic fixture replay against an explicitly modeled ungated baseline. It evaluates the safety layer only. It does not claim measured Gemini/Gemma quality, latency, token use, or cost. Those require a separately labeled live-model benchmark.
+
+## Benchmark Layer B Boundary
+
+Layer B runs real API-backed fleets sequentially or at low concurrency. It compares Gemini-only and hybrid Gemini + Gemma routing using identical goals and injected drift scenarios. It records success, intent retention, model attempts, tokens, latency, quota failures, and estimated cost without reusing Layer A's deterministic percentages as model-quality claims.

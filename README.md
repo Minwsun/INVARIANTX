@@ -91,7 +91,7 @@ npm run build
 
 The evaluation suite covers valid delegation, omission, contradiction, weakening, objective substitution, scope expansion, repair, tool mutation, semantic ambiguity, model budget exhaustion, and persistence failure.
 
-Comparative benchmark methodology: `benchmarks/README.md`.
+Benchmark Layer A methodology: `benchmarks/README.md`. Live-model fleet comparison is reserved for Layer B.
 
 ## API
 
