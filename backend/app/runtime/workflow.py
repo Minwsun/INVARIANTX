@@ -126,15 +126,18 @@ def build_invariant_workflow(
         node_input: Any,
     ) -> WorkflowPacket:
         request = WorkflowRequest.model_validate(ctx.state["workflow_request"])
-        raw_candidate = RawIntentContractCandidate.model_validate(
-            _json_compatible(node_input)
-        )
         normalized = _normalize_intent_candidate(
-            raw_candidate.model_dump(mode="json"),
+            _json_compatible(node_input),
             request.state,
         )
+        raw_candidate = RawIntentContractCandidate.model_validate(normalized)
         if intent_normalizer is not None:
-            normalized = intent_normalizer(normalized, request.state)
+            normalized = intent_normalizer(
+                raw_candidate.model_dump(mode="json"),
+                request.state,
+            )
+        else:
+            normalized = raw_candidate.model_dump(mode="json")
         candidate = IntentContractCandidate.model_validate(normalized)
         contract = IntentContract(
             id=f"intent_{request.run_id}",
@@ -581,6 +584,8 @@ def _normalize_intent_candidate(
         item = dict(objective)
         if item.get("operator") in reduction_operators:
             item["operator"] = "decrease_by"
+        if str(item.get("unit", "")).casefold() in {"percentage", "%"}:
+            item["unit"] = "percent"
         objectives.append(item)
     normalized["objectives"] = objectives
     constraints = []

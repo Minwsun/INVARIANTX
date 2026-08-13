@@ -162,6 +162,27 @@ def test_compiler_canonicalizes_reduction_operator_aliases() -> None:
         assert grounded["objectives"][0]["operator"] == "decrease_by"
 
 
+def test_compiler_canonicalizes_percentage_unit_alias() -> None:
+    grounded = _ground_constraint_references(
+        {
+            "objectives": [
+                {
+                    "id": "obj_1",
+                    "metric": "logistics_cost",
+                    "operator": "decrease_by",
+                    "target": 15,
+                    "unit": "percentage",
+                    "reference": "baseline.logistics_cost",
+                    "source_span": "Reduce logistics cost by 15%",
+                }
+            ]
+        },
+        {"baseline.logistics_cost": 100},
+    )
+
+    assert grounded["objectives"][0]["unit"] == "percent"
+
+
 def test_compiler_canonicalizes_constraint_operator_aliases() -> None:
     for operator, expected in (
         ("equals", "equal"),
