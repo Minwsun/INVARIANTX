@@ -55,9 +55,7 @@ def test_worker_schema_requires_gate_evidence() -> None:
 
     assert schema["properties"]["arguments"]["required"] == ["plan_id"]
     assert schema["properties"]["arguments"]["properties"]["plan_id"]["enum"] == [
-        "safe_balanced",
-        "cheapest",
-        "fastest",
+        "safe_balanced"
     ]
     assert schema["properties"]["proposed_metrics"]["required"] == [
         "delivery_delay"

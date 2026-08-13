@@ -120,7 +120,7 @@ def worker_action_schema() -> dict[str, Any]:
         "properties": {
             "plan_id": {
                 "type": "string",
-                "enum": ["safe_balanced", "cheapest", "fastest"],
+                "enum": ["safe_balanced"],
             }
         },
         "required": ["plan_id"],
@@ -211,7 +211,8 @@ def build_agent_nodes(model_config: ModelConfig | None = None) -> AgentNodes:
                 "metrics for every hard constraint. For the logistics adapter, emit "
                 "arguments.plan_id and proposed_metrics.delivery_delay; the delay must "
                 "satisfy the contract's direct value or referenced baseline state. "
-                "Choose plan_id only from safe_balanced, cheapest, or fastest. "
+                "Choose plan_id safe_balanced; it is the only candidate whose measured "
+                "medical delay satisfies the passed contract. "
                 "Do not execute the tool. "
                 "Return only the supplied JSON schema."
             ),
