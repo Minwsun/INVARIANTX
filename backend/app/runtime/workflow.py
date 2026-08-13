@@ -708,6 +708,7 @@ def _normalize_intent_candidate(
         "greater_than_or_equals": "greater_than_or_equal",
         "at_least": "greater_than_or_equal",
         "equal": "equal",
+        "equal_to": "equal",
         "equals": "equal",
     }
     for constraint in candidate.get("hard_constraints", []):
@@ -790,6 +791,7 @@ def _normalize_delegation_proposal(
         ">=": "greater_than_or_equal",
         "gte": "greater_than_or_equal",
         "equal": "equal",
+        "equal_to": "equal",
         "equals": "equal",
         "==": "equal",
     }

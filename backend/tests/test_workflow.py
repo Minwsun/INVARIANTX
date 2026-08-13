@@ -129,6 +129,26 @@ def test_compiler_normalizes_live_constraint_operator_variants() -> None:
         assert grounded["hard_constraints"][0]["value_ref"] == "baseline.delivery_delay"
 
 
+def test_compiler_normalizes_equal_to_operator() -> None:
+    grounded = _ground_constraint_references(
+        {
+            "hard_constraints": [
+                {
+                    "id": "hc_1",
+                    "subject": "medical_orders",
+                    "metric": "delivery_delay",
+                    "operator": "equal_to",
+                    "value": 10,
+                    "source_span": "equal to the current baseline",
+                }
+            ]
+        },
+        {"baseline.delivery_delay": 10},
+    )
+
+    assert grounded["hard_constraints"][0]["operator"] == "equal"
+
+
 def test_compiler_normalizes_lte_cheaper_objective_to_reduction() -> None:
     grounded = _ground_constraint_references(
         {
