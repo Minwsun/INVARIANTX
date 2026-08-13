@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import os
+import time
 
-from fastapi import APIRouter, Header, HTTPException, Response, status
+from fastapi import APIRouter, Header, HTTPException, Request, Response, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -17,6 +19,7 @@ class RunCreateRequest(BaseModel):
 
 def create_runs_router(service: RunService) -> APIRouter:
     router = APIRouter(prefix="/runs", tags=["runs"])
+    public_demo_requests: dict[str, float] = {}
 
     @router.post("", status_code=status.HTTP_202_ACCEPTED)
     async def create_run(body: RunCreateRequest):
@@ -61,6 +64,30 @@ def create_runs_router(service: RunService) -> APIRouter:
             raise HTTPException(status_code=403, detail="invalid demo credentials")
         try:
             return await service.create(body.goal, scenario="deliberate_compare")
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+
+    @router.post("/demo/compare/public", status_code=status.HTTP_202_ACCEPTED)
+    async def create_public_compare_demo_run(request: Request):
+        if os.getenv("INVARIANT_PUBLIC_DEMO", "false").lower() != "true":
+            raise HTTPException(status_code=404, detail="public demo disabled")
+        client_id = request.headers.get("x-forwarded-for", "").split(",", 1)[0].strip()
+        if not client_id:
+            client_id = request.client.host if request.client else "unknown"
+        now = time.monotonic()
+        retry_after = 60 - (now - public_demo_requests.get(client_id, 0))
+        if retry_after > 0:
+            raise HTTPException(
+                status_code=429,
+                detail="public demo rate limit exceeded",
+                headers={"Retry-After": str(max(1, int(retry_after)))},
+            )
+        public_demo_requests[client_id] = now
+        try:
+            return await service.create(
+                "Reduce logistics cost by 15% without delaying medical orders.",
+                scenario="deliberate_compare",
+            )
         except ValueError as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
 

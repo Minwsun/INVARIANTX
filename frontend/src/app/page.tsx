@@ -143,14 +143,10 @@ export default function Home() {
 
   async function startCompare(event: FormEvent) {
     event.preventDefault();
-    const demoKey = window.prompt("Demo key (kept in memory only)");
-    if (!demoKey) return;
     setLoading(true); setError(""); setRun(null); setContract(null); setEvents([]); setSelected(null);
     try {
-      const response = await fetch(`${API_BASE}/runs/demo/compare`, {
+      const response = await fetch(`${API_BASE}/runs/demo/compare/public`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-INVARIANT-DEMO-KEY": demoKey },
-        body: JSON.stringify({ goal }),
       });
       if (!response.ok) throw new Error(`Compare run rejected (${response.status})`);
       const snapshot: RunSnapshot = await response.json();

@@ -242,6 +242,52 @@ def test_compare_demo_proves_baseline_violation_and_invariant_preservation(
     assert any(event.type.value == "REPAIR_ACCEPTED" for event in events)
 
 
+def test_public_compare_uses_server_configuration_and_rate_limits(monkeypatch) -> None:
+    async def run():
+        monkeypatch.setenv("INVARIANT_PUBLIC_DEMO", "true")
+        service = RunService(agent_nodes=fake_agent_nodes())
+        app = create_app(service)
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            created = await client.post(
+                "/runs/demo/compare/public",
+                headers={"X-Forwarded-For": "203.0.113.10"},
+            )
+            repeated = await client.post(
+                "/runs/demo/compare/public",
+                headers={"X-Forwarded-For": "203.0.113.10"},
+            )
+            snapshot = await wait_for_terminal(client, created.json()["run_id"])
+            return created, repeated, snapshot
+
+    created, repeated, snapshot = asyncio.run(run())
+
+    assert created.status_code == 202
+    assert repeated.status_code == 429
+    assert repeated.headers["retry-after"]
+    assert snapshot["scenario"] == "deliberate_compare"
+    assert snapshot["goal"] == (
+        "Reduce logistics cost by 15% without delaying medical orders."
+    )
+
+
+def test_public_compare_is_disabled_by_default(monkeypatch) -> None:
+    async def run():
+        monkeypatch.delenv("INVARIANT_PUBLIC_DEMO", raising=False)
+        app = create_app(RunService(agent_nodes=fake_agent_nodes()))
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            return await client.post("/runs/demo/compare/public")
+
+    response = asyncio.run(run())
+
+    assert response.status_code == 404
+
+
 def test_standard_run_never_emits_demo_drift_event() -> None:
     async def run():
         service = RunService(agent_nodes=fake_agent_nodes())

@@ -25,6 +25,8 @@ services:
         sync: false
       - key: INVARIANT_DEMO_KEY
         sync: false
+      - key: INVARIANT_PUBLIC_DEMO
+        value: "true"
       - key: CORS_ORIGIN_REGEX
         value: ^https://invariantx-web(?:-[a-z0-9-]+)?\.onrender\.com$
 
