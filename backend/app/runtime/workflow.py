@@ -664,6 +664,7 @@ def _normalize_intent_candidate(
         "decrease_by_at_least",
         "decrease_by_percent",
         "decrease_by_percentage",
+        "decrease_by_at_least_percentage",
         "reduce_by",
         "reduce_by_percentage",
         "decrease",

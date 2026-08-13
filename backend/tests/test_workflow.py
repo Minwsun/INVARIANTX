@@ -139,6 +139,7 @@ def test_compiler_canonicalizes_reduction_operator_aliases() -> None:
         "decrease_by_at_least",
         "decrease_by_percent",
         "decrease_by_percentage",
+        "decrease_by_at_least_percentage",
         "reduce_by",
         "reduce_by_percentage",
     ):
