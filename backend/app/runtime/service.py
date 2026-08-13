@@ -14,13 +14,19 @@ from pydantic import Field
 from app.domain.adapter import DomainAdapter
 from app.domain.logistics_tools import LogisticsAdapter
 from app.invariant.models import (
+    ExecutionReceipt,
     FrozenModel,
     GateStatus,
     IntentContract,
 )
 from app.runtime.agents import AgentNodes, ModelExecutionBlocked
 from app.runtime.events import EventJournal, EventType, RunStatus
-from app.runtime.workflow import WorkflowRequest, WorkflowResult, build_invariant_workflow
+from app.runtime.workflow import (
+    WorkflowRequest,
+    WorkflowResult,
+    build_invariant_workflow,
+    validate_execution,
+)
 from app.storage.memory import InMemoryStore
 
 
@@ -197,7 +203,7 @@ class RunService:
                     "status": status,
                     "repair_count": result.repair_count,
                     "llm_call_count": result.llm_call_count,
-                    "result": result.model_dump(mode="json"),
+                    "result": self._result_payload(record, result),
                 }
             )
             await self._save_snapshot(record)
@@ -242,6 +248,58 @@ class RunService:
                 {"error": str(error)},
             )
 
+    def _result_payload(
+        self,
+        record: _RunRecord,
+        result: WorkflowResult,
+    ) -> dict[str, Any]:
+        payload = result.model_dump(mode="json")
+        if record.snapshot.scenario != "deliberate_compare" or record.contract is None:
+            return payload
+        baseline_receipt = self.adapter.baseline_receipt()
+        if baseline_receipt is None:
+            return payload
+        baseline_validation = validate_execution(
+            record.contract,
+            record.request.state,
+            baseline_receipt,
+        )
+        payload["comparison"] = {
+            "same_environment": True,
+            "dataset_version": baseline_receipt.dataset_version,
+            "shared_drift": {
+                "type": "constraint_omission",
+                "removed_constraint_ids": [
+                    constraint.id for constraint in record.contract.hard_constraints
+                ],
+            },
+            "baseline": {
+                "name": "ungated_agent_fleet",
+                "plan_id": baseline_receipt.plan_id,
+                "receipt": baseline_receipt.model_dump(mode="json"),
+                "validation": baseline_validation.model_dump(mode="json"),
+                "final_verdict": "INTENT_VIOLATED",
+            },
+            "invariant": {
+                "name": "invariant_v3",
+                "repair_count": result.repair_count,
+                "receipt": ExecutionReceipt.model_validate(
+                    result.tool_result
+                ).model_dump(mode="json"),
+                "validation": result.validation.model_dump(mode="json")
+                if result.validation
+                else None,
+                "final_verdict": "INTENT_PRESERVED"
+                if result.status == "COMPLETED"
+                else "BLOCKED",
+            },
+            "prevented_outcomes": ["deprioritize_medical_orders"],
+            "restored_constraint_ids": [
+                constraint.id for constraint in record.contract.hard_constraints
+            ],
+        }
+        return payload
+
     async def _publish_adk_event(self, record: _RunRecord, event) -> None:
         if not event.node_info:
             return
@@ -261,7 +319,8 @@ class RunService:
         event_type = mapping.get(node_name)
         if (
             node_name == "inject_demo_drift"
-            and record.snapshot.scenario != "deliberate_constraint_omission"
+            and record.snapshot.scenario
+            not in {"deliberate_constraint_omission", "deliberate_compare"}
         ):
             event_type = None
         if node_name == "check_delegation":
@@ -280,6 +339,9 @@ class RunService:
                 payload = {
                     "scenario": record.snapshot.scenario,
                     "removed_constraint_ids": [packet.contract.hard_constraints[0].id],
+                    "corrupted_proposal": packet.delegation.model_dump(mode="json")
+                    if packet.delegation
+                    else None,
                 }
             elif node_name == "check_delegation" and packet:
                 payload.update(
@@ -290,17 +352,41 @@ class RunService:
                         "drift_types": [
                             violation.drift_type.value for violation in packet.violations
                         ],
+                        "verdict": route,
+                        "violations": [
+                            violation.model_dump(mode="json")
+                            for violation in packet.violations
+                        ],
                     }
                 )
             elif node_name == "repair_task" and packet and packet.delegation:
                 payload["restored_constraint_ids"] = [
                     claim.constraint_id for claim in packet.delegation.constraint_claims
                 ]
+                payload["repaired_proposal"] = packet.delegation.model_dump(
+                    mode="json"
+                )
+            elif node_name == "planner_agent" and packet and packet.delegation:
+                payload["output"] = packet.delegation.model_dump(mode="json")
+                payload["model"] = _model_call_payload(packet, "planner")
+            elif node_name == "intent_compiler" and packet:
+                payload["model"] = _model_call_payload(packet, "intent_compiler")
+            elif node_name == "worker_agent" and packet and packet.action:
+                payload["input"] = packet.delegation.model_dump(mode="json")
+                payload["output"] = packet.action.model_dump(mode="json")
+                payload["model"] = _model_call_payload(packet, "worker")
             elif node_name == "execute_tool" and packet:
                 receipt = packet.tool_result
                 if getattr(receipt, "status", None) == "unknown":
                     event_type = EventType.TOOL_TIMED_OUT
+                if receipt is not None:
+                    payload["receipt"] = (
+                        receipt.model_dump(mode="json")
+                        if hasattr(receipt, "model_dump")
+                        else receipt
+                    )
             elif node_name == "validate_result" and packet and packet.validation:
+                payload["validation"] = packet.validation.model_dump(mode="json")
                 if packet.validation.verdict == "BLOCK":
                     event_type = EventType.RECEIPT_REJECTED
             if packet and node_name in {"intent_compiler", "planner_agent", "worker_agent"}:
@@ -353,3 +439,8 @@ def _event_packet(output: Any) -> WorkflowResult | Any:
         return WorkflowPacket.model_validate(output)
     except Exception:
         return None
+
+
+def _model_call_payload(packet, role: str) -> dict[str, Any] | None:
+    call = next((item for item in reversed(packet.model_calls) if item.role == role), None)
+    return call.model_dump(mode="json") if call else None

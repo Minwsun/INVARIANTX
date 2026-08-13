@@ -43,6 +43,7 @@ class WorkflowRequest(FrozenModel):
         "standard",
         "deliberate_constraint_omission",
         "deliberate_tool_timeout",
+        "deliberate_compare",
     ] = "standard"
 
 
@@ -181,7 +182,8 @@ def build_invariant_workflow(
 
     def inject_demo_drift(node_input: WorkflowPacket) -> WorkflowPacket:
         if (
-            node_input.request.scenario != "deliberate_constraint_omission"
+            node_input.request.scenario
+            not in {"deliberate_constraint_omission", "deliberate_compare"}
             or node_input.contract is None
             or node_input.delegation is None
             or not node_input.contract.hard_constraints
@@ -416,7 +418,11 @@ def build_invariant_workflow(
         return node_input.model_copy(update={"tool_result": result})
 
     def validate_result(node_input: WorkflowPacket) -> WorkflowPacket:
-        validation = _validate_execution(node_input)
+        validation = validate_execution(
+            node_input.contract,
+            node_input.request.state,
+            node_input.tool_result,
+        )
         return node_input.model_copy(
             update={
                 "status": "COMPLETED" if validation.verdict == "PASS" else "BLOCKED",
@@ -639,11 +645,15 @@ def _json_compatible(value: Any) -> Any:
     return value
 
 
-def _validate_execution(packet: WorkflowPacket) -> ValidationResult:
-    if packet.contract is None:
+def validate_execution(
+    contract: IntentContract | None,
+    state: dict[str, float],
+    tool_result: Any,
+) -> ValidationResult:
+    if contract is None:
         return _blocked_validation("contract", "intent contract is missing")
     try:
-        receipt = ExecutionReceipt.model_validate(packet.tool_result)
+        receipt = ExecutionReceipt.model_validate(tool_result)
     except Exception as error:
         return _blocked_validation("execution_receipt", f"invalid receipt: {error}")
     if receipt.status != "applied":
@@ -656,12 +666,12 @@ def _validate_execution(packet: WorkflowPacket) -> ValidationResult:
     objective_status: dict[str, bool] = {}
     constraint_status: dict[str, bool] = {}
 
-    for objective in packet.contract.objectives:
+    for objective in contract.objectives:
         actual = receipt.actual_metrics.get(objective.metric)
         reference_key = objective.reference
-        if reference_key not in packet.request.state:
+        if reference_key not in state:
             reference_key = f"baseline.{objective.metric}"
-        baseline = packet.request.state.get(reference_key)
+        baseline = state.get(reference_key)
         passed = (
             actual is not None
             and baseline is not None
@@ -683,12 +693,12 @@ def _validate_execution(packet: WorkflowPacket) -> ValidationResult:
                 )
             )
 
-    for constraint in packet.contract.hard_constraints:
+    for constraint in contract.hard_constraints:
         actual = receipt.actual_metrics.get(constraint.metric)
         expected = (
             constraint.value
             if constraint.value is not None
-            else packet.request.state.get(constraint.value_ref or "")
+            else state.get(constraint.value_ref or "")
         )
         passed = (
             actual is not None
@@ -705,7 +715,7 @@ def _validate_execution(packet: WorkflowPacket) -> ValidationResult:
                 )
             )
 
-    for outcome in packet.contract.forbidden_outcomes:
+    for outcome in contract.forbidden_outcomes:
         if outcome in receipt.occurred_outcomes:
             violations.append(
                 Violation(
@@ -714,7 +724,7 @@ def _validate_execution(packet: WorkflowPacket) -> ValidationResult:
                     evidence="forbidden outcome occurred",
                 )
             )
-    for entity in packet.contract.protected_entities:
+    for entity in contract.protected_entities:
         if receipt.protected_entities.get(entity) is not True:
             violations.append(
                 Violation(

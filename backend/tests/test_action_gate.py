@@ -155,7 +155,7 @@ def test_executor_runs_exact_approved_side_effect() -> None:
 
     assert result["status"] == "applied"
     assert result["plan_id"] == "plan-safe"
-    assert result["actual_metrics"]["logistics_cost"] == 85
+    assert result["actual_metrics"]["logistics_cost"] == 824
     assert tools.applied_plans == ["plan-safe"]
 
 

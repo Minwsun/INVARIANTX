@@ -249,6 +249,12 @@ class ExecutionReceipt(FrozenModel):
     status: str = Field(min_length=1)
     plan_id: str = Field(min_length=1)
     actual_metrics: dict[str, float] = Field(default_factory=dict)
+    before_metrics: dict[str, float] = Field(default_factory=dict)
+    dataset_version: str | None = None
+    counts: dict[str, int] = Field(default_factory=dict)
+    capacity_violations: tuple[str, ...] = ()
+    sla_violations: tuple[str, ...] = ()
+    assignment_summary: dict[str, int] = Field(default_factory=dict)
     occurred_outcomes: tuple[str, ...] = ()
     protected_entities: dict[str, bool] = Field(default_factory=dict)
     evidence_source: EvidenceSource

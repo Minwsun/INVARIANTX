@@ -2,25 +2,18 @@ from typing import Any
 import time
 
 from app.domain.adapter import DomainAdapter
+from app.domain.logistics_simulator import LogisticsSimulator
 from app.invariant.models import EvidenceSource, EvidenceType, ExecutionReceipt, ToolRisk
 
 
 class LogisticsTools:
     def __init__(self) -> None:
         self.applied_plans: list[str] = []
+        self.simulator = LogisticsSimulator()
 
     def apply_plan(self, plan_id: str) -> dict[str, object]:
         self.applied_plans.append(plan_id)
-        return {
-            "status": "applied",
-            "plan_id": plan_id,
-            "actual_metrics": {
-                "logistics_cost": 85,
-                "delivery_delay": 10,
-            },
-            "occurred_outcomes": [],
-            "protected_entities": {"medical_orders": True},
-        }
+        return self.simulator.execute(plan_id)
 
     def apply_plan_slow(self, plan_id: str) -> dict[str, object]:
         time.sleep(11)
@@ -46,7 +39,7 @@ class LogisticsAdapter(DomainAdapter):
         return {
             "baseline.medical_delay": 10,
             "baseline.delivery_delay": 10,
-            "baseline.logistics_cost": 100,
+            "baseline.logistics_cost": 1000,
         }
 
     def tools(self, scenario: str = "standard") -> dict[str, tuple[Any, ToolRisk]]:
@@ -68,3 +61,9 @@ class LogisticsAdapter(DomainAdapter):
             adapter=self.name,
         )
         return ExecutionReceipt.model_validate(data)
+
+    def baseline_receipt(self) -> ExecutionReceipt:
+        return self.build_receipt(
+            self.runtime_tools.simulator.execute("cheapest"),
+            self.baseline_state(),
+        )

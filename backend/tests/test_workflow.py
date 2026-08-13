@@ -33,7 +33,7 @@ def workflow_request(
         state={
             "baseline.medical_delay": 10,
             "baseline.delivery_delay": 10,
-            "baseline.logistics_cost": 100,
+            "baseline.logistics_cost": 1000,
         },
     )
 
@@ -304,7 +304,7 @@ def test_adk_graph_repairs_drift_then_executes() -> None:
     assert result.repair_count == 1
     assert result.llm_call_count == 3
     assert result.tool_result["status"] == "applied"
-    assert result.tool_result["actual_metrics"]["logistics_cost"] == 85
+    assert result.tool_result["actual_metrics"]["logistics_cost"] == 824
     assert result.validation.verdict == "PASS"
     assert state["repair_count"] == 1
     assert state["llm_call_count"] == 3
@@ -380,7 +380,7 @@ def test_final_validator_blocks_cost_target_miss() -> None:
         return {
             "status": "applied",
             "plan_id": plan_id,
-            "actual_metrics": {"logistics_cost": 90, "delivery_delay": 10},
+            "actual_metrics": {"logistics_cost": 900, "delivery_delay": 10},
             "occurred_outcomes": [],
             "protected_entities": {"medical_orders": True},
         }

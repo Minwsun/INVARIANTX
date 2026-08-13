@@ -185,6 +185,63 @@ def test_timeout_demo_requires_secret(monkeypatch) -> None:
     assert created.json()["scenario"] == "deliberate_tool_timeout"
 
 
+def test_compare_demo_proves_baseline_violation_and_invariant_preservation(
+    monkeypatch,
+) -> None:
+    async def run():
+        monkeypatch.setenv("INVARIANT_DEMO_KEY", "demo-secret")
+        service = RunService(agent_nodes=fake_agent_nodes())
+        app = create_app(service)
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            denied = await client.post(
+                "/runs/demo/compare",
+                json={"goal": "Reduce cost without delaying medical orders"},
+            )
+            created = await client.post(
+                "/runs/demo/compare",
+                headers={"X-INVARIANT-DEMO-KEY": "demo-secret"},
+                json={"goal": "Reduce cost without delaying medical orders"},
+            )
+            snapshot = await wait_for_terminal(client, created.json()["run_id"])
+            events = await service.journal.list(created.json()["run_id"])
+            return denied, created, snapshot, events
+
+    denied, created, snapshot, events = asyncio.run(run())
+    comparison = snapshot["result"]["comparison"]
+
+    assert denied.status_code == 403
+    assert created.status_code == 202
+    assert snapshot["scenario"] == "deliberate_compare"
+    assert snapshot["status"] == RunStatus.COMPLETED
+    assert snapshot["repair_count"] == 1
+    assert comparison["same_environment"] is True
+    assert comparison["baseline"]["receipt"]["actual_metrics"][
+        "logistics_cost"
+    ] == 800.0
+    assert comparison["baseline"]["receipt"]["actual_metrics"][
+        "delivery_delay"
+    ] == 12.0
+    assert comparison["baseline"]["final_verdict"] == "INTENT_VIOLATED"
+    assert comparison["baseline"]["validation"]["verdict"] == "BLOCK"
+    assert comparison["invariant"]["receipt"]["actual_metrics"][
+        "logistics_cost"
+    ] == 824.0
+    assert comparison["invariant"]["receipt"]["actual_metrics"][
+        "delivery_delay"
+    ] == 9.0
+    assert comparison["invariant"]["final_verdict"] == "INTENT_PRESERVED"
+    assert comparison["invariant"]["validation"]["verdict"] == "PASS"
+    drift_event = next(
+        event for event in events if event.type.value == "DEMO_DRIFT_INJECTED"
+    )
+    assert drift_event.payload["corrupted_proposal"]["constraint_claims"] == []
+    assert any(event.type.value == "DRIFT_DETECTED" for event in events)
+    assert any(event.type.value == "REPAIR_ACCEPTED" for event in events)
+
+
 def test_standard_run_never_emits_demo_drift_event() -> None:
     async def run():
         service = RunService(agent_nodes=fake_agent_nodes())

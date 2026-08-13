@@ -23,6 +23,9 @@ class DomainAdapter(ABC):
     def normalize_intent(self, candidate: Any, state: dict[str, float]) -> Any:
         return candidate
 
+    def baseline_receipt(self) -> ExecutionReceipt | None:
+        return None
+
     @abstractmethod
     def build_receipt(
         self,
