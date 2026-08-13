@@ -18,9 +18,15 @@ def run_live_pilot(
     demo_key: str,
     output: Path,
     scenarios: int = 5,
+    repetitions: int = 1,
 ) -> dict[str, Any]:
     results = []
-    for scenario in LIVE_SCENARIOS[:scenarios]:
+    corpus = [
+        (scenario, repetition)
+        for repetition in range(1, repetitions + 1)
+        for scenario in LIVE_SCENARIOS[:scenarios]
+    ]
+    for scenario, repetition in corpus:
         started = time.perf_counter()
         try:
             pair_created = _request_json(
@@ -33,6 +39,7 @@ def run_live_pilot(
             results.append(
                 {
                     "scenario": scenario.model_dump(mode="json"),
+                    "repetition": repetition,
                     "same_goal": False,
                     "same_models": False,
                     "same_dataset": False,
@@ -54,6 +61,7 @@ def run_live_pilot(
         results.append(
             {
                 "scenario": scenario.model_dump(mode="json"),
+                "repetition": repetition,
                 "same_goal": pair_created["same_goal"],
                 "same_models": pair_created["same_models"],
                 "same_dataset": pair_created["same_dataset"],
@@ -243,7 +251,13 @@ def main() -> None:
     api_base = os.environ["INVARIANT_API_BASE"]
     demo_key = os.environ["INVARIANT_DEMO_KEY"]
     output = Path(os.getenv("INVARIANT_LIVE_OUTPUT", "../benchmarks/live-v1.json"))
-    run_live_pilot(api_base=api_base, demo_key=demo_key, output=output)
+    repetitions = int(os.getenv("INVARIANT_LIVE_REPETITIONS", "1"))
+    run_live_pilot(
+        api_base=api_base,
+        demo_key=demo_key,
+        output=output,
+        repetitions=repetitions,
+    )
 
 
 if __name__ == "__main__":
