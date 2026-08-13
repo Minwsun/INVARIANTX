@@ -1,5 +1,5 @@
 from app.evaluation.live_corpus import LIVE_SCENARIOS
-from app.evaluation.live_benchmark import _summarize
+from app.evaluation.live_benchmark import _failed_run, _summarize
 
 
 def test_live_corpus_covers_five_natural_drift_categories() -> None:
@@ -95,3 +95,14 @@ def test_live_summary_separates_unsafe_execution_from_validation_block() -> None
     assert summary["baseline"]["objective_failures"] == 1
     assert summary["invariant"]["final_validation_blocks"] == 1
     assert summary["invariant"]["unsafe_actions_executed"] == 0
+
+
+def test_failed_pair_record_is_counted_as_technical_failure() -> None:
+    failed = _failed_run("compiler failed")
+    summary = _summarize(
+        [{"baseline": failed, "invariant": failed, "same_contract": False}]
+    )
+
+    assert summary["comparable_pairs"] == 0
+    assert summary["baseline"]["technical_model_failures"] == 1
+    assert summary["invariant"]["technical_model_failures"] == 1

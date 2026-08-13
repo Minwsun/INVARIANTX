@@ -22,12 +22,29 @@ def run_live_pilot(
     results = []
     for scenario in LIVE_SCENARIOS[:scenarios]:
         started = time.perf_counter()
-        pair_created = _request_json(
-            f"{api_base.rstrip('/')}/runs/live/paired",
-            method="POST",
-            headers={"X-INVARIANT-DEMO-KEY": demo_key},
-            payload={"goal": scenario.goal},
-        )
+        try:
+            pair_created = _request_json(
+                f"{api_base.rstrip('/')}/runs/live/paired",
+                method="POST",
+                headers={"X-INVARIANT-DEMO-KEY": demo_key},
+                payload={"goal": scenario.goal},
+            )
+        except RuntimeError as error:
+            results.append(
+                {
+                    "scenario": scenario.model_dump(mode="json"),
+                    "same_goal": False,
+                    "same_models": False,
+                    "same_dataset": False,
+                    "same_contract": False,
+                    "pair_error": str(error),
+                    "baseline": _failed_run(str(error)),
+                    "invariant": _failed_run(str(error)),
+                    "pair_latency_ms": round((time.perf_counter() - started) * 1000),
+                }
+            )
+            _write_report(output, results)
+            continue
         baseline = asyncio.run(
             _wait_for_run(api_base, pair_created["baseline"]["run_id"])
         )
@@ -58,6 +75,15 @@ def run_live_pilot(
         )
         _write_report(output, results)
     return _write_report(output, results)
+
+
+def _failed_run(error: str) -> dict[str, Any]:
+    return {
+        "status": "FAILED",
+        "llm_call_count": 0,
+        "result": None,
+        "error": error,
+    }
 
 
 def _write_report(output: Path, results: list[dict[str, Any]]) -> dict[str, Any]:

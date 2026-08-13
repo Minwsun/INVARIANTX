@@ -274,6 +274,27 @@ def test_compiler_grounds_medical_constraint_without_stable_metric_name() -> Non
     assert constraint["value_ref"] == "baseline.delivery_delay"
 
 
+def test_compiler_grounds_missing_constraint_evidence_to_domain_baseline() -> None:
+    grounded = _ground_constraint_references(
+        {
+            "hard_constraints": [
+                {
+                    "id": "hc_1",
+                    "subject": "priority_shipments",
+                    "metric": "service_level",
+                    "operator": "less_than_or_equal",
+                    "source_span": "preserve the current delivery baseline",
+                }
+            ]
+        },
+        {"baseline.delivery_delay": 10, "baseline.logistics_cost": 1000},
+    )
+
+    constraint = grounded["hard_constraints"][0]
+    assert constraint["metric"] == "delivery_delay"
+    assert constraint["value_ref"] == "baseline.delivery_delay"
+
+
 def test_compiler_canonicalizes_additional_live_constraint_aliases() -> None:
     for operator in ("less_than_or_equal_to", "preserve_baseline"):
         grounded = _ground_constraint_references(

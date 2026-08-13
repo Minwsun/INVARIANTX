@@ -722,7 +722,6 @@ def _normalize_intent_candidate(
         if (
             item.get("value") is None
             and not item.get("value_ref")
-            and subject == "medical_orders"
             and "baseline.delivery_delay" in state
         ):
             item["metric"] = "delivery_delay"
