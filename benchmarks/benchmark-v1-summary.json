@@ -1,20 +1,32 @@
 ﻿{
     "schema_version":  "1.0",
-    "dataset_version":  "drift-corpus-v1",
+    "dataset_version":  "drift-corpus-v2",
     "methodology":  "deterministic_fixture_replay",
-    "code_revision":  "aa615b6865cc7ec5a07cf893c5a792d2a858b6be",
-    "corpus_size":  80,
+    "code_revision":  "9dd9d7a21095ed2007208cc14bab4aa94d68ac4f",
+    "generated_at":  "2026-08-13T11:21:11.886515Z",
+    "corpus_size":  90,
+    "categories":  {
+                       "valid":  10,
+                       "constraint_omission":  10,
+                       "constraint_weakening":  10,
+                       "constraint_contradiction":  10,
+                       "objective_substitution":  10,
+                       "stale_contract":  10,
+                       "unauthorized_tool":  10,
+                       "argument_mutation":  10,
+                       "unsafe_plan":  10
+                   },
     "baseline":  {
-                     "case_count":  80,
+                     "case_count":  90,
                      "drift_detection_recall":  0.0,
                      "drift_false_positive_rate":  0.0,
                      "repair_success_rate":  0.0,
                      "unsafe_action_prevention_rate":  0.0,
-                     "constraint_violation_rate":  0.875,
-                     "final_integrity_rate":  0.125
+                     "constraint_violation_rate":  0.8888888888888888,
+                     "final_integrity_rate":  0.1111111111111111
                  },
     "invariant":  {
-                      "case_count":  80,
+                      "case_count":  90,
                       "drift_detection_recall":  1.0,
                       "drift_false_positive_rate":  0.0,
                       "repair_success_rate":  1.0,
