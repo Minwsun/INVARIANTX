@@ -216,6 +216,39 @@ def test_compiler_canonicalizes_live_model_aliases() -> None:
     assert grounded["hard_constraints"][0]["operator"] == "less_than_or_equal"
 
 
+def test_compiler_recovers_live_objective_and_sla_reference() -> None:
+    grounded = _ground_constraint_references(
+        {
+            "objectives": [
+                {
+                    "id": "obj_1",
+                    "metric": "logistics_cost",
+                    "operator": "<=",
+                    "target": 18,
+                    "unit": "percent_of_baseline",
+                    "reference": "baseline.logistics_cost",
+                    "source_span": "Reduce operating cost by 18%",
+                }
+            ],
+            "hard_constraints": [
+                {
+                    "id": "hc_1",
+                    "subject": "medical_orders",
+                    "metric": "medical_delivery_time",
+                    "operator": "preserve_baseline",
+                    "source_span": "keep medical orders within the current delivery baseline",
+                }
+            ],
+        },
+        {"baseline.logistics_cost": 1000, "baseline.delivery_delay": 10},
+    )
+
+    assert grounded["objectives"][0]["operator"] == "decrease_by"
+    assert grounded["objectives"][0]["unit"] == "percent"
+    assert grounded["hard_constraints"][0]["metric"] == "delivery_delay"
+    assert grounded["hard_constraints"][0]["value_ref"] == "baseline.delivery_delay"
+
+
 def test_compiler_canonicalizes_additional_live_constraint_aliases() -> None:
     for operator in ("less_than_or_equal_to", "preserve_baseline"):
         grounded = _ground_constraint_references(

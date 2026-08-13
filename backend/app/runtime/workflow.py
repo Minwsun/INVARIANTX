@@ -670,7 +670,13 @@ def _normalize_intent_candidate(
     }
     for objective in candidate.get("objectives", []):
         item = dict(objective)
-        if item.get("operator") in reduction_operators:
+        source_span = str(item.get("source_span", "")).casefold()
+        operator = str(item.get("operator", "")).casefold()
+        if operator in reduction_operators or (
+            operator in {"<=", "lte", "less_than_or_equal"}
+            and any(term in source_span for term in ("reduce", "decrease", "cut", "lower"))
+            and ("%" in source_span or "percent" in source_span)
+        ):
             item["operator"] = "decrease_by"
         if str(item.get("unit", "")).casefold() in {
             "percentage",
@@ -706,11 +712,9 @@ def _normalize_intent_candidate(
             key for key in state if key.rsplit(".", 1)[-1] == metric
         ]
         source_span = str(item.get("source_span", "")).lower()
-        if (
-            not baseline_matches
-            and "delay" in source_span
-            and "baseline.delivery_delay" in state
-        ):
+        if not baseline_matches and any(
+            term in source_span for term in ("delay", "delivery", "sla")
+        ) and "baseline.delivery_delay" in state:
             item["metric"] = "delivery_delay"
             baseline_matches = ["baseline.delivery_delay"]
         if (
