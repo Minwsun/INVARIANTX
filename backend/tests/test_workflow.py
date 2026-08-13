@@ -1,11 +1,12 @@
 import asyncio
+import time
 from collections.abc import Awaitable, Callable
 
 from google.adk.runners import InMemoryRunner
 from google.genai import types
 
 from app.domain.logistics import medical_logistics_contract
-from app.domain.logistics_tools import LogisticsTools
+from app.domain.logistics_tools import LogisticsAdapter
 from app.invariant.models import (
     ActionProposal,
     ConstraintClaim,
@@ -251,9 +252,18 @@ def run_workflow(
     apply_plan=None,
 ) -> tuple[WorkflowResult, dict, list]:
     async def run() -> tuple[WorkflowResult, dict, list]:
-        tools = LogisticsTools()
+        adapter = LogisticsAdapter()
         workflow = build_invariant_workflow(
-            {"apply_plan": (apply_plan or tools.apply_plan, ToolRisk.SIDE_EFFECT)},
+            {
+                "apply_plan": (
+                    apply_plan or adapter.runtime_tools.apply_plan,
+                    ToolRisk.SIDE_EFFECT,
+                )
+            },
+            domain_vocabulary=adapter.vocabulary(),
+            domain_adapter_name=adapter.name,
+            intent_normalizer=adapter.normalize_intent,
+            receipt_builder=adapter.build_receipt,
             semantic_verifier=semantic_verifier,
             max_llm_calls=max_llm_calls,
             max_repairs=max_repairs,
@@ -431,6 +441,41 @@ def test_final_validator_blocks_forbidden_outcome() -> None:
         violation.reference_id == "deprioritize_medical_orders"
         for violation in result.violations
     )
+
+
+def test_tool_timeout_creates_unknown_receipt_and_blocks() -> None:
+    def apply_plan(plan_id: str):
+        time.sleep(0.05)
+        return {"status": "applied", "plan_id": plan_id}
+
+    adapter = LogisticsAdapter()
+
+    async def run():
+        from app.invariant.action_gate import ActionGate
+        from app.invariant.tools import ToolExecutor
+
+        executor = ToolExecutor(ActionGate())
+        executor.register("apply_plan", apply_plan, ToolRisk.SIDE_EFFECT)
+        contract = medical_logistics_contract()
+        proposal = ActionProposal(
+            action_id="A-timeout",
+            contract_id=contract.id,
+            contract_version=contract.version,
+            tool_name="apply_plan",
+            risk=ToolRisk.SIDE_EFFECT,
+            arguments={"plan_id": "slow"},
+            proposed_metrics={"delivery_delay": 10},
+        )
+        approval = ActionGate().check(contract, proposal, workflow_request().state).approval
+        try:
+            await executor.execute_async(
+                contract, proposal, approval, workflow_request().state, timeout_seconds=0.001
+            )
+        except TimeoutError:
+            return
+        raise AssertionError("side-effect tool timeout was not enforced")
+
+    asyncio.run(run())
 
 
 def test_budget_blocks_worker_before_call() -> None:

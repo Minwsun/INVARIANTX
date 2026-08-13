@@ -22,12 +22,17 @@ class SemanticVerdict(FrozenModel):
 
 
 class ModelCallRecord(FrozenModel):
+    role: str = "semantic_verifier"
+    provider: str = "google"
     model: str
+    attempt: int = Field(default=1, ge=1)
+    outcome: str = "SUCCESS"
     input_tokens: int = 0
     output_tokens: int = 0
     latency_ms: int = 0
     cache_hit: bool = False
     escalation_reason: str | None = None
+    error_type: str | None = None
 
 
 class SemanticCheckResult(FrozenModel):

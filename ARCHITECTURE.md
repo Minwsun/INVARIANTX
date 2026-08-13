@@ -1,4 +1,4 @@
-# INVARIANT Architecture v1
+# INVARIANT Architecture v3
 
 This document is subordinate to `TECHNOLOGY-CONTRACT.md`.
 
@@ -16,13 +16,13 @@ INVARIANT preserves, verifies, and repairs human intent during autonomous multi-
 | Delegation Gate | Verifies proposed work preserves the contract |
 | Worker | Produces an `ActionProposal` or a result |
 | Action Gate | Verifies side effects before tool execution |
-| Repair Agent | Minimally repairs a rejected proposal |
-| Validator | Checks final outcome against the contract |
+| Repair Engine | Deterministically repairs supported rejected proposals |
+| Final Contract Validator | Deterministically checks canonical execution evidence against the contract |
 | Constraint Engine | Runs deterministic policy checks |
 | Semantic Verifier | Handles unresolved semantic ambiguity with Gemini |
 | Event Journal | Emits typed, ordered audit events |
 | API | Creates, observes, streams, and cancels runs |
-| Domain Adapter | Supplies domain tools, data references, and evaluators |
+| Domain Adapter | Supplies vocabulary, baseline state, tools, normalization, and receipt construction |
 
 ## Required Graph
 
@@ -53,7 +53,7 @@ Action Gate -------- REPAIR ----> Repair ----> Recheck
 Tool Executor
   |
   v
-Validator
+Final Contract Validator
   |
   +---- PASS ----> END
   |
@@ -72,8 +72,9 @@ Graph routes are selected from typed verdict fields, never parsed prose.
 6. Worker receives only a passed proposal and required contract projection.
 7. Action Gate approves the exact normalized side-effect request.
 8. Tool Executor invokes the ADK Function Tool only after approval.
-9. Validator compares outcome and final state with the contract.
-10. Every transition emits an `InvariantEvent` and updates compact session state.
+9. Domain Adapter converts the raw result into an evidence-labeled `ExecutionReceipt`.
+10. Final Contract Validator compares canonical evidence with the contract.
+11. Every transition emits an `InvariantEvent` and updates compact session state.
 
 ## State Ownership
 

@@ -83,7 +83,12 @@ Events are the communication and audit primitive between runtime nodes and the f
 - Events reference large artifacts by ID.
 - Secrets, credentials, full prompts, chain-of-thought, and sensitive raw datasets are prohibited.
 - Violations include stable constraint IDs and evidence references.
-- Model events include model, role, token counts, latency, cache status, confidence, and escalation reason.
+- Model events include provider, model, role, attempt, outcome, token counts, latency, cache status, error type, and escalation reason.
+- `MODEL_RETRY` records an observable same-model retry.
+- `MODEL_FAILED` records terminal fail-closed model execution.
+- `POLICY_ESCALATED` records unresolved ambiguity and maps to terminal `BLOCKED` in v3.
+- `TOOL_TIMED_OUT` records ambiguous side-effect execution with `UNKNOWN` evidence.
+- `RECEIPT_REJECTED` records malformed or contract-invalid execution evidence.
 - Terminal events include final status, metrics summary, and result reference.
 
 ## Persistence and Ordering

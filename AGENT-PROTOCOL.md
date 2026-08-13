@@ -73,7 +73,7 @@ Output is one of:
 
 `ActionProposal` contains tool name, JSON arguments, expected effect, objective references, invariant references, and required permissions.
 
-## Repair Agent
+## Repair Engine
 
 Input:
 
@@ -91,9 +91,9 @@ Input:
 
 Output: `RepairResult` containing a minimally changed replacement proposal, changed fields, preserved fields, and a concise repair reason.
 
-The Repair Agent cannot alter objective meaning, contract data, tool results, or runtime facts.
+The deterministic Repair Engine cannot alter objective meaning, contract data, tool results, or runtime facts.
 
-## Validator
+## Final Contract Validator
 
 Input:
 
@@ -104,7 +104,7 @@ Input:
 
 Output: `ValidationResult` with objective status, constraint status, evidence references, confidence, and final verdict.
 
-Validator prose is not authoritative. Deterministic result checks override conflicting semantic output.
+The validator is deterministic Python and consumes only the immutable contract, runtime state, and canonical `ExecutionReceipt`.
 
 ## Output Limits
 
@@ -125,4 +125,3 @@ Validator prose is not authoritative. Deterministic result checks override confl
 7. Route to the applicable gate or next deterministic node.
 
 One schema-repair attempt is permitted only when the total LLM-call budget remains available.
-

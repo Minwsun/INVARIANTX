@@ -11,14 +11,14 @@ from google.adk.runners import InMemoryRunner
 from google.genai import types
 from pydantic import Field
 
-from app.domain.logistics_tools import LogisticsTools
+from app.domain.adapter import DomainAdapter
+from app.domain.logistics_tools import LogisticsAdapter
 from app.invariant.models import (
     FrozenModel,
     GateStatus,
     IntentContract,
-    ToolRisk,
 )
-from app.runtime.agents import AgentNodes
+from app.runtime.agents import AgentNodes, ModelExecutionBlocked
 from app.runtime.events import EventJournal, EventType, RunStatus
 from app.runtime.workflow import WorkflowRequest, WorkflowResult, build_invariant_workflow
 from app.storage.memory import InMemoryStore
@@ -51,10 +51,12 @@ class RunService:
         store=None,
         journal: EventJournal | None = None,
         agent_nodes: AgentNodes | None = None,
+        adapter: DomainAdapter | None = None,
     ) -> None:
         self.store = store or InMemoryStore()
         self.journal = journal or EventJournal(self.store)
         self.agent_nodes = agent_nodes
+        self.adapter = adapter or LogisticsAdapter()
         self._runs: dict[str, _RunRecord] = {}
 
     async def create(
@@ -70,11 +72,7 @@ class RunService:
             run_id=run_id,
             goal=goal,
             scenario=scenario,
-            state={
-                "baseline.medical_delay": 10,
-                "baseline.delivery_delay": 10,
-                "baseline.logistics_cost": 100,
-            },
+            state=self.adapter.baseline_state(),
         )
         snapshot = RunSnapshot(
             run_id=run_id,
@@ -129,8 +127,6 @@ class RunService:
 
     async def _execute(self, record: _RunRecord) -> None:
         run_id = record.snapshot.run_id
-        tools = LogisticsTools()
-
         async def persist_action_decision(verdict):
             event_type = (
                 EventType.GATE_PASSED
@@ -156,7 +152,11 @@ class RunService:
             await self._save_snapshot(record)
 
         workflow = build_invariant_workflow(
-            {"apply_plan": (tools.apply_plan, ToolRisk.SIDE_EFFECT)},
+            self.adapter.tools(),
+            domain_vocabulary=self.adapter.vocabulary(),
+            domain_adapter_name=self.adapter.name,
+            intent_normalizer=self.adapter.normalize_intent,
+            receipt_builder=self.adapter.build_receipt,
             action_decision_sink=persist_action_decision,
             contract_sink=persist_contract,
             agent_nodes=self.agent_nodes,
@@ -213,6 +213,23 @@ class RunService:
             )
             await self._save_snapshot(record)
             await self.journal.append(run_id, EventType.RUN_CANCELLED, "runtime")
+        except ModelExecutionBlocked as error:
+            record.snapshot = record.snapshot.model_copy(
+                update={"status": RunStatus.BLOCKED, "error": str(error)}
+            )
+            await self._save_snapshot(record)
+            await self.journal.append(
+                run_id,
+                EventType.MODEL_FAILED,
+                "runtime",
+                {"error": str(error)},
+            )
+            await self.journal.append(
+                run_id,
+                EventType.RUN_COMPLETED,
+                "runtime",
+                {"status": RunStatus.BLOCKED.value},
+            )
         except Exception as error:
             record.snapshot = record.snapshot.model_copy(
                 update={"status": RunStatus.FAILED, "error": str(error)}
@@ -248,11 +265,14 @@ class RunService:
         ):
             event_type = None
         if node_name == "check_delegation":
-            event_type = (
-                EventType.DRIFT_DETECTED
-                if route == "REPAIR"
-                else EventType.GATE_PASSED
-            )
+            if route == GateStatus.REPAIR.value:
+                event_type = EventType.DRIFT_DETECTED
+            elif route == GateStatus.ESCALATE.value:
+                event_type = EventType.POLICY_ESCALATED
+            elif route == GateStatus.PASS.value:
+                event_type = EventType.GATE_PASSED
+            else:
+                event_type = EventType.ACTION_BLOCKED
         if event_type is not None:
             payload = {"route": route} if route else {}
             packet = _event_packet(event.output)
@@ -276,6 +296,31 @@ class RunService:
                 payload["restored_constraint_ids"] = [
                     claim.constraint_id for claim in packet.delegation.constraint_claims
                 ]
+            elif node_name == "execute_tool" and packet:
+                receipt = packet.tool_result
+                if getattr(receipt, "status", None) == "unknown":
+                    event_type = EventType.TOOL_TIMED_OUT
+            elif node_name == "validate_result" and packet and packet.validation:
+                if packet.validation.verdict == "BLOCK":
+                    event_type = EventType.RECEIPT_REJECTED
+            if packet and node_name in {"intent_compiler", "planner_agent", "worker_agent"}:
+                role = {
+                    "intent_compiler": "intent_compiler",
+                    "planner_agent": "planner",
+                    "worker_agent": "worker",
+                }[node_name]
+                failures = [
+                    call.model_dump(mode="json")
+                    for call in packet.model_calls
+                    if call.outcome == "FAILED" and call.role == role
+                ]
+                for failure in failures:
+                    await self.journal.append(
+                        run_id,
+                        EventType.MODEL_RETRY,
+                        node_name,
+                        failure,
+                    )
             await self.journal.append(
                 run_id,
                 event_type,

@@ -31,7 +31,8 @@ from app.invariant.models import (
 from app.invariant.repair import repair_delegation
 from app.invariant.semantic import ModelCallRecord, SemanticVerifier
 from app.invariant.tools import ToolExecutionBlocked, ToolExecutor
-from app.runtime.agents import AgentNodes, DEFAULT_MODEL, build_agent_nodes
+from app.runtime.agents import AgentNodes, build_agent_nodes
+from app.runtime.models import ModelConfig, ModelRole
 
 
 class WorkflowRequest(FrozenModel):
@@ -70,6 +71,10 @@ class WorkflowResult(FrozenModel):
 def build_invariant_workflow(
     tools: dict[str, tuple[Any, Any]],
     *,
+    domain_vocabulary: dict[str, list[str]] | None = None,
+    domain_adapter_name: str = "runtime",
+    intent_normalizer: Callable[[Any, dict[str, float]], Any] | None = None,
+    receipt_builder: Callable[[Any, dict[str, float]], ExecutionReceipt] | None = None,
     max_repairs: int = 2,
     max_llm_calls: int = 5,
     semantic_verifier: SemanticVerifier | None = None,
@@ -86,7 +91,9 @@ def build_invariant_workflow(
     executor = ToolExecutor(action_gate)
     for name, (tool, risk) in tools.items():
         executor.register(name, tool, risk)
-    nodes = agent_nodes or build_agent_nodes()
+    model_config = ModelConfig.from_env()
+    nodes = agent_nodes or build_agent_nodes(model_config)
+    vocabulary = domain_vocabulary or {}
     runtime_permissions = tuple(
         Permission(tool_name=name, risk=risk) for name, (_, risk) in tools.items()
     )
@@ -104,9 +111,7 @@ def build_invariant_workflow(
         return {
             "goal": node_input.request.goal,
             "domain_vocabulary": {
-                "objectives": ["logistics_cost"],
-                "subjects": ["medical_orders"],
-                "metrics": ["delivery_delay"],
+                **vocabulary,
                 "references": list(node_input.request.state),
             },
         }
@@ -119,12 +124,13 @@ def build_invariant_workflow(
         raw_candidate = RawIntentContractCandidate.model_validate(
             _json_compatible(node_input)
         )
-        candidate = IntentContractCandidate.model_validate(
-            _normalize_intent_candidate(
-                raw_candidate.model_dump(mode="json"),
-                request.state,
-            )
+        normalized = _normalize_intent_candidate(
+            raw_candidate.model_dump(mode="json"),
+            request.state,
         )
+        if intent_normalizer is not None:
+            normalized = intent_normalizer(normalized, request.state)
+        candidate = IntentContractCandidate.model_validate(normalized)
         contract = IntentContract(
             id=f"intent_{request.run_id}",
             version=1,
@@ -261,7 +267,7 @@ def build_invariant_workflow(
                     output=packet.model_copy(
                         update={"status": "BLOCKED", "violations": (violation,)}
                     ),
-                    route=GateStatus.BLOCK.value,
+                    route=GateStatus.ESCALATE.value,
                 )
             if not semantic_verdict.preserved:
                 violation_ids = semantic_verdict.violation_ids or tuple(
@@ -314,6 +320,9 @@ def build_invariant_workflow(
             route="RECHECK",
         )
 
+    def mark_escalated(node_input: WorkflowPacket) -> WorkflowPacket:
+        return node_input.model_copy(update={"status": "BLOCKED"})
+
     def prepare_worker(ctx: Context, node_input: WorkflowPacket) -> dict[str, Any]:
         if node_input.contract is None or node_input.delegation is None:
             raise RuntimeError("worker requires passed delegation and contract")
@@ -360,15 +369,27 @@ def build_invariant_workflow(
             packet = packet.model_copy(update={"status": "BLOCKED"})
         return Event(output=packet, route=result.verdict.status.value)
 
-    def execute_tool(node_input: WorkflowPacket) -> WorkflowPacket:
+    async def execute_tool(node_input: WorkflowPacket) -> WorkflowPacket:
         if node_input.action is None:
             return node_input.model_copy(update={"status": "BLOCKED"})
         try:
-            result = executor.execute(
+            raw_result = await executor.execute_async(
                 contract=node_input.contract,
                 proposal=node_input.action,
                 approval=node_input.approval,
                 state=node_input.request.state,
+            )
+        except TimeoutError:
+            plan_id = str(node_input.action.arguments.get("plan_id", "unknown"))
+            return node_input.model_copy(
+                update={
+                    "status": "BLOCKED",
+                    "tool_result": ExecutionReceipt.unknown(
+                        plan_id=plan_id,
+                        adapter=domain_adapter_name,
+                        reference="tool_timeout",
+                    ),
+                }
             )
         except ToolExecutionBlocked as error:
             return node_input.model_copy(
@@ -383,6 +404,11 @@ def build_invariant_workflow(
                     ),
                 }
             )
+        result = (
+            receipt_builder(raw_result, node_input.request.state)
+            if receipt_builder is not None
+            else raw_result
+        )
         return node_input.model_copy(update={"tool_result": result})
 
     def validate_result(node_input: WorkflowPacket) -> WorkflowPacket:
@@ -443,13 +469,34 @@ def build_invariant_workflow(
         packet: WorkflowPacket,
         agent_name: str,
     ) -> WorkflowPacket:
+        role = {
+            "intent_compiler": ModelRole.INTENT_COMPILER,
+            "planner_agent": ModelRole.PLANNER,
+            "worker_agent": ModelRole.WORKER,
+        }[agent_name]
         telemetry = ctx.state.get(f"model_call.{agent_name}") or {
-            "model": DEFAULT_MODEL
+            "role": role.value,
+            "provider": "google",
+            "model": model_config.for_role(role),
+            "attempt": 1,
+            "outcome": "SUCCESS",
         }
+        failures = tuple(
+            ModelCallRecord.model_validate(
+                {
+                    "role": role.value,
+                    "provider": "google",
+                    **failure,
+                }
+            )
+            for failure in ctx.state.get(f"model_call_failures.{agent_name}", [])
+        )
         return packet.model_copy(
             update={
+                "llm_call_count": int(ctx.state.get("llm_call_count", packet.llm_call_count)),
                 "model_calls": (
                     *packet.model_calls,
+                    *failures,
                     ModelCallRecord.model_validate(telemetry),
                 ),
             }
@@ -480,8 +527,10 @@ def build_invariant_workflow(
                     GateStatus.PASS.value: reserve_worker_call,
                     GateStatus.REPAIR.value: repair_task,
                     GateStatus.BLOCK.value: finalize,
+                    GateStatus.ESCALATE.value: mark_escalated,
                 },
             ),
+            (mark_escalated, finalize),
             (
                 repair_task,
                 {

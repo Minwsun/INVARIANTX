@@ -1,7 +1,7 @@
-# INVARIANT Technology Contract v2
+# INVARIANT Technology Contract v3
 
 Status: **Frozen**  
-Effective date: **2026-08-12**
+Effective date: **2026-08-13**
 
 ## North Star
 
@@ -14,8 +14,10 @@ INVARIANT is a runtime layer that preserves, verifies, and repairs human intent 
 | Area | Technology |
 | --- | --- |
 | Languages | Python + TypeScript |
-| Default AI model | `gemini-3.5-flash-lite` |
-| Escalation AI model | `gemini-3.5-flash` |
+| Intent Compiler | `gemini-3.5-flash-lite` |
+| Planner workforce | `gemma-4-31b-it` |
+| Worker workforce | `gemma-4-31b-it` |
+| Semantic escalation | `gemini-3.5-flash` |
 | Agent framework | Google ADK 2.x |
 | Orchestration | ADK Graph Workflow |
 | Communication | Typed Events / JSON |
@@ -38,27 +40,35 @@ INVARIANT is a runtime layer that preserves, verifies, and repairs human intent 
 
 ## Runtime Rules
 
-1. The runtime uses one Intent Compiler and four logical agents: Planner, Worker, Repair, and Validator.
+1. The runtime uses three LLM roles: Intent Compiler, Planner, and Worker. Repair, gates, and final validation are deterministic Python components.
 2. Agents exchange typed JSON objects through runtime-managed events and state. Agent-to-agent prose is prohibited.
 3. The Intent Contract is immutable. Agents have read-only access. A user-authorized change creates a new version.
 4. Every material delegation passes the Delegation Gate.
 5. Every side-effecting tool call passes the Action Gate.
 6. Deterministic Python checks run before any semantic model check.
-7. Gemini is used only when semantics cannot be resolved deterministically.
+7. Gemini compiles human intent; Gemma performs planner/worker workloads. Gemini semantic fallback is used only when code cannot decide.
 8. Repair output is never trusted implicitly; every repair is checked again.
 9. Missing contract data, stale approval, gate failure, or altered tool arguments fail closed.
 10. Large data belongs in Firestore or artifacts, not prompts or session state.
 
 ## Model Budget
 
-- Flash-Lite is always attempted before Flash.
-- Normal run target: at most 3 LLM calls.
-- Absolute run limit: at most 5 LLM calls.
+- Normal run target: exactly 3 model attempts: one Gemini compiler plus two Gemma workforce calls.
+- Absolute run limit: at most 5 network attempts, including failed attempts and retries.
+- A failed role retries the same model once. Cross-model fallback is prohibited.
 - Semantic-call input target: fewer than 1,000 tokens.
 - Semantic-verifier output target: fewer than 150 tokens.
 - Structured agent outputs use the smallest complete schema budget: compiler 800, planner 400, worker 300 tokens maximum.
 - Each call records model, role, input tokens, output tokens, latency, cache status, confidence, and escalation reason.
-- Reaching the call limit blocks optional reasoning and returns the safest valid terminal result.
+- Reaching the attempt limit blocks execution and returns the safest valid terminal result.
+
+## Domain And Evidence Boundary
+
+- Core runtime receives a constructor-injected `DomainAdapter`; public requests cannot select adapters or models.
+- Logistics is the v1 demo adapter, not core runtime policy.
+- Tools return raw domain results. The adapter creates a canonical `ExecutionReceipt` with an explicit evidence source.
+- Simulator evidence is labeled `simulator`; timeout or ambiguous execution is labeled `unknown` and always blocks.
+- Side-effect tools have a 10-second default timeout and are never retried automatically.
 
 ## MVP Deployment Boundary
 

@@ -53,6 +53,12 @@ class ToolRisk(StrEnum):
     SIDE_EFFECT = "SIDE_EFFECT"
 
 
+class EvidenceType(StrEnum):
+    SIMULATOR = "simulator"
+    EXTERNAL = "external"
+    UNKNOWN = "unknown"
+
+
 class Objective(FrozenModel):
     id: str = Field(min_length=1)
     metric: str = Field(min_length=1)
@@ -233,12 +239,31 @@ class ActionGateResult(FrozenModel):
     approval: ActionApproval | None = None
 
 
+class EvidenceSource(FrozenModel):
+    type: EvidenceType
+    adapter: str = Field(min_length=1)
+    reference: str | None = None
+
+
 class ExecutionReceipt(FrozenModel):
     status: str = Field(min_length=1)
     plan_id: str = Field(min_length=1)
     actual_metrics: dict[str, float] = Field(default_factory=dict)
     occurred_outcomes: tuple[str, ...] = ()
     protected_entities: dict[str, bool] = Field(default_factory=dict)
+    evidence_source: EvidenceSource
+
+    @classmethod
+    def unknown(cls, *, plan_id: str, adapter: str, reference: str) -> ExecutionReceipt:
+        return cls(
+            status="unknown",
+            plan_id=plan_id,
+            evidence_source=EvidenceSource(
+                type=EvidenceType.UNKNOWN,
+                adapter=adapter,
+                reference=reference,
+            ),
+        )
 
 
 class ValidationResult(FrozenModel):

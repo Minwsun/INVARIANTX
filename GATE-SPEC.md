@@ -78,7 +78,7 @@ The action is forbidden, deterministic safety failed, approval is stale, budget 
 
 ### `ESCALATE`
 
-Human clarification is required because intent is conflicting, high-impact ambiguity remains, or automatic repair would choose new intent.
+Human clarification is required because intent is conflicting, high-impact ambiguity remains, or automatic repair would choose new intent. In v3 this emits `POLICY_ESCALATED` and terminates the run as `BLOCKED`; no human-review queue exists yet.
 
 ## Deterministic Rules
 
@@ -102,7 +102,7 @@ Semantic verification receives only the proposal, relevant contract clauses, con
 ## Repair Protocol
 
 1. Gate emits `REPAIR` with typed violations.
-2. Repair Agent changes only listed repairable fields.
+2. Deterministic Repair Engine changes only listed repairable fields.
 3. Runtime validates the repaired proposal.
 4. The same gate performs a fresh full check.
 5. Passed repair resumes execution.
@@ -124,4 +124,3 @@ No prompt instruction, agent role, or graph route can bypass this callback.
 - `apply_plan` is side-effecting and always gated.
 - A plan that chooses the cheapest route without preserving `MEDICAL_SLA` receives `REPAIR`.
 - A simulated plan that increases medical delay receives `BLOCK`, even if semantic verification approves it.
-

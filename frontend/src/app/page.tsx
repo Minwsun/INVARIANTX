@@ -34,6 +34,11 @@ const eventTypes = [
   "REPAIR_ACCEPTED",
   "TOOL_COMPLETED",
   "VALIDATION_COMPLETED",
+  "MODEL_RETRY",
+  "MODEL_FAILED",
+  "POLICY_ESCALATED",
+  "TOOL_TIMED_OUT",
+  "RECEIPT_REJECTED",
 ] as const;
 
 type EventType = (typeof eventTypes)[number];
@@ -63,7 +68,16 @@ type RunSnapshot = {
   llm_call_count: number;
   scenario?: string;
   result?: {
-    model_calls?: Array<{ input_tokens: number; output_tokens: number }>;
+    model_calls?: Array<{
+      role: string;
+      provider: string;
+      model: string;
+      attempt: number;
+      outcome: string;
+      input_tokens: number;
+      output_tokens: number;
+      latency_ms: number;
+    }>;
   };
 };
 
@@ -97,8 +111,8 @@ const graphEdges: Edge[] = [
 }));
 
 function eventTone(type: EventType) {
-  if (type === "DRIFT_DETECTED" || type === "ACTION_BLOCKED") return "danger";
-  if (type === "REPAIR_ACCEPTED") return "repair";
+  if (["DRIFT_DETECTED", "ACTION_BLOCKED", "MODEL_FAILED", "TOOL_TIMED_OUT", "RECEIPT_REJECTED"].includes(type)) return "danger";
+  if (type === "REPAIR_ACCEPTED" || type === "MODEL_RETRY" || type === "POLICY_ESCALATED") return "repair";
   if (type === "RUN_COMPLETED" || type === "GATE_PASSED") return "success";
   return "neutral";
 }
@@ -296,6 +310,13 @@ export default function Home() {
         <Metric label="Repairs" value={run?.repair_count ?? 0} />
       </section>
 
+      <section className="model-routing" aria-label="Model routing">
+        <ModelRoute role="Intent Compiler" model="Gemini 3.5 Flash-Lite" />
+        <ModelRoute role="Planner" model="Gemma 4 31B" />
+        <ModelRoute role="Worker" model="Gemma 4 31B" />
+        <ModelRoute role="Safety Authority" model="Deterministic Python" />
+      </section>
+
       <section className="workspace">
         <article className="panel graph-panel">
           <PanelTitle kicker="Execution" title="Agent workflow" detail={run?.run_id ?? "No active run"} />
@@ -345,6 +366,10 @@ export default function Home() {
 
 function Metric({ label, value }: { label: string; value: string | number }) {
   return <div className="metric"><span>{label}</span><strong>{value}</strong></div>;
+}
+
+function ModelRoute({ role, model }: { role: string; model: string }) {
+  return <div className="model-route"><span>{role}</span><strong>{model}</strong></div>;
 }
 
 function PanelTitle({ kicker, title, detail }: { kicker: string; title: string; detail: string }) {

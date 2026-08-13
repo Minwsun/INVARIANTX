@@ -2,11 +2,11 @@ from google.adk.agents import LlmAgent
 
 from app.invariant.models import ActionProposal, IntentContractCandidate
 from app.runtime.agents import (
-    DEFAULT_MODEL,
     build_agent_nodes,
-    gemini_schema,
+    structured_output_schema,
     worker_action_schema,
 )
+from app.runtime.models import INTENT_MODEL, PLANNER_MODEL, WORKER_MODEL, ModelConfig
 from app.runtime.workflow import WorkflowRequest
 
 
@@ -16,7 +16,10 @@ def test_production_nodes_are_real_adk_llm_agents() -> None:
     assert isinstance(nodes.intent_compiler, LlmAgent)
     assert isinstance(nodes.planner, LlmAgent)
     assert isinstance(nodes.worker, LlmAgent)
-    assert nodes.intent_compiler.model == DEFAULT_MODEL
+    assert nodes.intent_compiler.model.model == INTENT_MODEL
+    assert nodes.planner.model.model == PLANNER_MODEL
+    assert nodes.worker.model.model == WORKER_MODEL
+    assert nodes.intent_compiler.model.retry_options.attempts == 1
     assert nodes.planner.mode == "single_turn"
     assert nodes.worker.tools == []
     assert nodes.intent_compiler.generate_content_config.max_output_tokens == 800
@@ -35,9 +38,9 @@ def test_workflow_request_accepts_only_goal_and_runtime_state() -> None:
     assert request.scenario == "standard"
 
 
-def test_gemini_schema_removes_unsupported_additional_properties() -> None:
+def test_structured_output_schema_removes_unsupported_properties() -> None:
     for model_type in (IntentContractCandidate, ActionProposal):
-        schema = str(gemini_schema(model_type))
+        schema = str(structured_output_schema(model_type))
         assert "additionalProperties" not in schema
         assert "exclusiveMinimum" not in schema
         assert "'const'" not in schema
@@ -54,3 +57,12 @@ def test_worker_schema_requires_gate_evidence() -> None:
     assert schema["properties"]["proposed_metrics"]["required"] == [
         "delivery_delay"
     ]
+
+
+def test_model_config_reads_role_specific_environment(monkeypatch) -> None:
+    monkeypatch.setenv("INVARIANT_INTENT_MODEL", "gemini-3.5-flash")
+    config = ModelConfig.from_env()
+
+    assert config.intent_compiler == "gemini-3.5-flash"
+    assert config.planner == PLANNER_MODEL
+    assert config.worker == WORKER_MODEL

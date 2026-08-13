@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import Callable
 from typing import Any
 
@@ -52,3 +53,21 @@ class ToolExecutor:
             if verdict.status != GateStatus.PASS:
                 raise ToolExecutionBlocked(verdict.violations[0].evidence)
         return tool(**proposal.arguments)
+
+    async def execute_async(
+        self,
+        contract: IntentContract,
+        proposal: ActionProposal,
+        approval: ActionApproval | None,
+        state: dict[str, float],
+        *,
+        timeout_seconds: float = 10,
+    ) -> Any:
+        async with asyncio.timeout(timeout_seconds):
+            return await asyncio.to_thread(
+                self.execute,
+                contract,
+                proposal,
+                approval,
+                state,
+            )
