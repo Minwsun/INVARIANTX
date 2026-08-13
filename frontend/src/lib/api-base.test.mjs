@@ -8,6 +8,10 @@ test("normalizes Render hostnames", () => {
     normalizeApiBase("invariantx-api.onrender.com"),
     "https://invariantx-api.onrender.com",
   );
+  assert.equal(
+    normalizeApiBase("invariantx-api"),
+    "https://invariantx-api.onrender.com",
+  );
   assert.equal(normalizeApiBase("https://api.example.com"), "https://api.example.com");
   assert.equal(normalizeApiBase(), "http://localhost:8000");
 });
