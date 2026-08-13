@@ -75,8 +75,9 @@ def create_runs_router(service: RunService) -> APIRouter:
         if not client_id:
             client_id = request.client.host if request.client else "unknown"
         now = time.monotonic()
-        retry_after = 60 - (now - public_demo_requests.get(client_id, 0))
-        if retry_after > 0:
+        previous_request = public_demo_requests.get(client_id)
+        retry_after = 60 - (now - previous_request) if previous_request else 0
+        if previous_request is not None and retry_after > 0:
             raise HTTPException(
                 status_code=429,
                 detail="public demo rate limit exceeded",
