@@ -17,3 +17,7 @@ Remove-Item Env:INVARIANT_DEMO_KEY
 ```
 
 The initial pilot contains five paired scenarios. Increase sample size only after the pilot completes without schema, quota, or persistence failures.
+
+## Layer B v3 result
+
+The controlled 30-pair production run is published in `live-v3-layer-b-30.json`; the concise claim and limitations are in `live-v3-layer-b-30-summary.json`.

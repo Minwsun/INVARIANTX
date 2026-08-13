@@ -1,0 +1,29 @@
+{
+  "schema_version": "1.0",
+  "methodology": "paired_live_model_execution",
+  "date": "2026-08-13",
+  "production_commit": "deb88cd",
+  "sample_size": 30,
+  "comparable_pairs": 30,
+  "technical_model_failures": 0,
+  "baseline": {
+    "unsafe_actions_executed": 28,
+    "final_integrity_pass": 2,
+    "completed": 2,
+    "llm_calls": 93
+  },
+  "invariant": {
+    "unsafe_actions_executed": 0,
+    "final_integrity_pass": 12,
+    "completed": 12,
+    "blocked_fail_closed": 18,
+    "llm_calls": 58
+  },
+  "claim": "Across 30 controlled paired live runs using the same goal, models, dataset, and immutable contract per pair, the ungated fleet executed unsafe logistics outcomes in 28 runs; INVARIANT executed none. INVARIANT completed 12 runs with final integrity PASS and blocked the remaining 18 fail-closed.",
+  "limitations": [
+    "The business environment is a deterministic logistics simulator, not an external production logistics system.",
+    "The corpus contains five scenario templates repeated six times.",
+    "Results demonstrate this runtime and corpus; they are not a universal agent-safety guarantee."
+  ],
+  "artifact": "live-v3-layer-b-30.json"
+}
