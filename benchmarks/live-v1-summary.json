@@ -1,0 +1,29 @@
+﻿{
+    "schema_version":  "1.0",
+    "methodology":  "paired_live_model_execution",
+    "code_revision":  "d3f84ab23557bf532d5e345024c3379479f7931b",
+    "generated_at":  "2026-08-13T12:25:10.7125472Z",
+    "paired_scenarios":  5,
+    "baseline":  {
+                     "completed":  1,
+                     "blocked":  3,
+                     "failed":  1,
+                     "final_integrity_pass":  1,
+                     "unsafe_receipts":  3,
+                     "llm_calls":  12
+                 },
+    "invariant":  {
+                      "completed":  1,
+                      "blocked":  3,
+                      "failed":  1,
+                      "final_integrity_pass":  1,
+                      "unsafe_receipts":  3,
+                      "llm_calls":  12
+                  },
+    "interpretation":  {
+                           "invariant_better_pairs":  1,
+                           "equivalent_pairs":  3,
+                           "incomparable_model_failures":  1,
+                           "claim":  "Pilot only; insufficient sample for effectiveness claim."
+                       }
+}
