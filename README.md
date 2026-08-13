@@ -82,6 +82,7 @@ Open `http://localhost:3000`.
 cd backend
 pytest
 python -m app.evaluation --output ..\benchmarks\baseline.json
+python -m app.evaluation --benchmark --cases-per-category 10 --output ..\benchmarks\benchmark-v1.json
 
 cd ..\frontend
 npm run lint
@@ -89,6 +90,8 @@ npm run build
 ```
 
 The evaluation suite covers valid delegation, omission, contradiction, weakening, objective substitution, scope expansion, repair, tool mutation, semantic ambiguity, model budget exhaustion, and persistence failure.
+
+Comparative benchmark methodology: `benchmarks/README.md`.
 
 ## API
 

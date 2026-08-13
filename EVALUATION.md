@@ -111,3 +111,6 @@ Model-quality thresholds for semantic recall and false-positive rate are recorde
 
 Each benchmark result records code revision, Technology Contract version, model IDs, prompt versions, dataset version, metric values, failed scenario IDs, token usage, latency, and cost estimate.
 
+## Benchmark v1 Boundary
+
+The first comparative report uses deterministic fixture replay against an explicitly modeled ungated baseline. It evaluates the safety layer only. It does not claim measured Gemini/Gemma quality, latency, token use, or cost. Those require a separately labeled live-model benchmark.
