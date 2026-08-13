@@ -109,7 +109,7 @@ def test_compiler_normalizes_at_or_below_and_grounds_reference() -> None:
 
 
 def test_compiler_normalizes_live_constraint_operator_variants() -> None:
-    for operator in ("lessthan_or_equal", "preserve", "maintain"):
+    for operator in ("lessthan_or_equal", "preserve", "maintain", "not_worse_than"):
         grounded = _ground_constraint_references(
             {
                 "hard_constraints": [
@@ -137,6 +137,27 @@ def test_compiler_normalizes_lte_cheaper_objective_to_reduction() -> None:
                     "id": "obj_cost",
                     "metric": "logistics_cost",
                     "operator": "lte",
+                    "target": 10,
+                    "unit": "percent",
+                    "reference": "baseline",
+                    "source_span": "at least 10% cheaper",
+                }
+            ]
+        },
+        {"baseline.logistics_cost": 1000},
+    )
+
+    assert grounded["objectives"][0]["operator"] == "decrease_by"
+
+
+def test_compiler_normalizes_gte_cheaper_objective_to_reduction() -> None:
+    grounded = _ground_constraint_references(
+        {
+            "objectives": [
+                {
+                    "id": "obj_cost",
+                    "metric": "logistics_cost",
+                    "operator": ">=",
                     "target": 10,
                     "unit": "percent",
                     "reference": "baseline",

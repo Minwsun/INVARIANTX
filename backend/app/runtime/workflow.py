@@ -676,7 +676,7 @@ def _normalize_intent_candidate(
         source_span = str(item.get("source_span", "")).casefold()
         operator = str(item.get("operator", "")).casefold()
         if operator in reduction_operators or (
-            operator in {"<=", "lte", "less_than_or_equal"}
+            operator in {"<=", "lte", "less_than_or_equal", ">=", "gte", "greater_than_or_equal"}
             and any(term in source_span for term in ("reduce", "decrease", "cut", "lower", "cheaper", "save"))
             and ("%" in source_span or "percent" in source_span)
         ):
@@ -703,6 +703,7 @@ def _normalize_intent_candidate(
         "preserve_baseline": "less_than_or_equal",
         "preserve": "less_than_or_equal",
         "maintain": "less_than_or_equal",
+        "not_worse_than": "less_than_or_equal",
         "greater_than_or_equal": "greater_than_or_equal",
         "greater_than_or_equals": "greater_than_or_equal",
         "at_least": "greater_than_or_equal",
@@ -781,6 +782,7 @@ def _normalize_delegation_proposal(
         "lte": "less_than_or_equal",
         "preserve": "less_than_or_equal",
         "maintain": "less_than_or_equal",
+        "not_worse_than": "less_than_or_equal",
         "preserve_current": "less_than_or_equal",
         "preserve_baseline": "less_than_or_equal",
         "greater_than_or_equal": "greater_than_or_equal",

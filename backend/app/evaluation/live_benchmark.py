@@ -19,8 +19,17 @@ def run_live_pilot(
     output: Path,
     scenarios: int = 5,
     repetitions: int = 1,
+    retry_failures: bool = False,
 ) -> dict[str, Any]:
     results = _existing_results(output)
+    if retry_failures:
+        results = [
+            result
+            for result in results
+            if not result.get("pair_error")
+            and not result.get("baseline", {}).get("error")
+            and not result.get("invariant", {}).get("error")
+        ]
     completed = {
         (result.get("scenario", {}).get("id"), result.get("repetition", 1))
         for result in results
@@ -287,11 +296,13 @@ def main() -> None:
     demo_key = os.environ["INVARIANT_DEMO_KEY"]
     output = Path(os.getenv("INVARIANT_LIVE_OUTPUT", "../benchmarks/live-v1.json"))
     repetitions = int(os.getenv("INVARIANT_LIVE_REPETITIONS", "1"))
+    retry_failures = os.getenv("INVARIANT_LIVE_RETRY_FAILURES", "false").lower() == "true"
     run_live_pilot(
         api_base=api_base,
         demo_key=demo_key,
         output=output,
         repetitions=repetitions,
+        retry_failures=retry_failures,
     )
 
 
