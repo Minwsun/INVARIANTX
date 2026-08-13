@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from dataclasses import dataclass
 from typing import Any, AsyncGenerator
 
@@ -118,6 +119,27 @@ def structured_output_schema(model_type: type) -> dict[str, Any]:
     return sanitized
 
 
+def _sanitize_structured_response(llm_response: LlmResponse) -> LlmResponse | None:
+    content = llm_response.content
+    if content is None or not content.parts or not content.parts[0].text:
+        return None
+    text = content.parts[0].text.strip()
+    if text.startswith("```"):
+        text = text.removeprefix("```json").removeprefix("```").strip()
+    try:
+        _, end = json.JSONDecoder().raw_decode(text)
+    except json.JSONDecodeError:
+        return None
+    sanitized = text[:end]
+    if sanitized == content.parts[0].text:
+        return None
+    parts = list(content.parts)
+    parts[0] = types.Part(text=sanitized)
+    return llm_response.model_copy(
+        update={"content": content.model_copy(update={"parts": parts})}
+    )
+
+
 def worker_action_schema() -> dict[str, Any]:
     schema = structured_output_schema(ActionProposal)
     properties = schema["properties"]
@@ -163,7 +185,7 @@ def build_agent_nodes(model_config: ModelConfig | None = None) -> AgentNodes:
                     getattr(usage, "cached_content_token_count", 0) or 0
                 ),
             }
-            return None
+            return _sanitize_structured_response(llm_response)
 
         return capture
 

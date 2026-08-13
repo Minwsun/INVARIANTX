@@ -3,10 +3,13 @@ from google.adk.agents import LlmAgent
 from app.invariant.models import ActionProposal, IntentContractCandidate
 from app.runtime.agents import (
     ModelExecutionBlocked,
+    _sanitize_structured_response,
     build_agent_nodes,
     structured_output_schema,
     worker_action_schema,
 )
+from google.adk.models.llm_response import LlmResponse
+from google.genai import types
 from app.runtime.models import INTENT_MODEL, PLANNER_MODEL, WORKER_MODEL, ModelConfig
 from app.runtime.workflow import WorkflowRequest
 
@@ -89,3 +92,25 @@ def test_model_execution_blocked_preserves_safe_failure_details() -> None:
     )
 
     assert error.failures[0]["error_type"] == "ValidationError"
+
+
+def test_structured_response_keeps_first_complete_json_object() -> None:
+    response = LlmResponse(
+        content=types.Content(
+            role="model",
+            parts=[types.Part(text='{"task_id":"one"}\n{"task_id":"two"}')],
+        )
+    )
+
+    sanitized = _sanitize_structured_response(response)
+
+    assert sanitized is not None
+    assert sanitized.content.parts[0].text == '{"task_id":"one"}'
+
+
+def test_structured_response_does_not_mask_truncated_json() -> None:
+    response = LlmResponse(
+        content=types.Content(role="model", parts=[types.Part(text='{"task_id":"')])
+    )
+
+    assert _sanitize_structured_response(response) is None
