@@ -32,6 +32,18 @@ def test_firestore_run_roundtrip() -> None:
     assert restored["status"] == "CREATED"
 
 
+def test_firestore_run_read_ignores_event_metadata() -> None:
+    async def run():
+        run_id = f"run_{uuid4().hex}"
+        current = store()
+        await current.save_run(run_id, {"run_id": run_id, "status": "CREATED"})
+        await current.append_event(run_id, EventType.RUN_COMPLETED, "test", {})
+        return await current.get_run(run_id)
+
+    restored = asyncio.run(run())
+    assert restored == {"run_id": restored["run_id"], "status": "CREATED"}
+
+
 def test_firestore_contract_immutable() -> None:
     async def run():
         current = store()

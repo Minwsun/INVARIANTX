@@ -32,7 +32,12 @@ class FirestoreStore:
 
     async def get_run(self, run_id: str) -> dict[str, Any] | None:
         snapshot = await self._client.collection("runs").document(run_id).get()
-        return snapshot.to_dict() if snapshot.exists else None
+        if not snapshot.exists:
+            return None
+        data = snapshot.to_dict()
+        data.pop("next_event_sequence", None)
+        data.pop("terminal_event", None)
+        return data
 
     async def create_contract(self, contract: IntentContract) -> None:
         reference = (
