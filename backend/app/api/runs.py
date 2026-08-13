@@ -119,6 +119,21 @@ def create_runs_router(service: RunService) -> APIRouter:
         except ValueError as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
 
+    @router.post("/live/{fleet_mode}", status_code=status.HTTP_202_ACCEPTED)
+    async def create_live_run(
+        fleet_mode: str,
+        body: RunCreateRequest,
+        demo_key: str | None = Header(default=None, alias="X-INVARIANT-DEMO-KEY"),
+    ):
+        if not demo_key_matches(demo_key):
+            raise HTTPException(status_code=403, detail="invalid demo credentials")
+        if fleet_mode not in {"ungated", "invariant"}:
+            raise HTTPException(status_code=404, detail="unknown fleet mode")
+        try:
+            return await service.create(body.goal, fleet_mode=fleet_mode)
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+
     @router.get("/{run_id}")
     async def get_run(run_id: str):
         try:

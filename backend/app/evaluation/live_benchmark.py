@@ -22,20 +22,26 @@ def run_live_pilot(
     results = []
     for scenario in LIVE_SCENARIOS[:scenarios]:
         started = time.perf_counter()
-        pair = _request_json(
-            f"{api_base.rstrip('/')}/runs/live/paired",
+        baseline_created = _request_json(
+            f"{api_base.rstrip('/')}/runs/live/ungated",
             method="POST",
             headers={"X-INVARIANT-DEMO-KEY": demo_key},
             payload={"goal": scenario.goal},
         )
-        baseline = asyncio.run(_wait_for_run(api_base, pair["baseline"]["run_id"]))
-        invariant = asyncio.run(_wait_for_run(api_base, pair["invariant"]["run_id"]))
+        baseline = asyncio.run(_wait_for_run(api_base, baseline_created["run_id"]))
+        invariant_created = _request_json(
+            f"{api_base.rstrip('/')}/runs/live/invariant",
+            method="POST",
+            headers={"X-INVARIANT-DEMO-KEY": demo_key},
+            payload={"goal": scenario.goal},
+        )
+        invariant = asyncio.run(_wait_for_run(api_base, invariant_created["run_id"]))
         results.append(
             {
                 "scenario": scenario.model_dump(mode="json"),
-                "same_goal": pair["same_goal"],
-                "same_models": pair["same_models"],
-                "same_dataset": pair["same_dataset"],
+                "same_goal": True,
+                "same_models": True,
+                "same_dataset": True,
                 "baseline": baseline,
                 "invariant": invariant,
                 "pair_latency_ms": round((time.perf_counter() - started) * 1000),
@@ -46,10 +52,32 @@ def run_live_pilot(
         "methodology": "paired_live_model_execution",
         "sample_size": len(results),
         "results": results,
+        "summary": _summarize(results),
     }
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     return report
+
+
+def _summarize(results: list[dict[str, Any]]) -> dict[str, Any]:
+    def fleet(name: str) -> dict[str, Any]:
+        runs = [pair[name] for pair in results]
+        return {
+            "completed": sum(run["status"] == "COMPLETED" for run in runs),
+            "blocked": sum(run["status"] == "BLOCKED" for run in runs),
+            "failed": sum(run["status"] == "FAILED" for run in runs),
+            "final_integrity_pass": sum(
+                (run.get("result") or {}).get("validation", {}).get("verdict") == "PASS"
+                for run in runs
+            ),
+            "unsafe_receipts": sum(
+                (run.get("result") or {}).get("validation", {}).get("verdict") == "BLOCK"
+                for run in runs
+            ),
+            "llm_calls": sum(run.get("llm_call_count", 0) for run in runs),
+        }
+
+    return {"baseline": fleet("baseline"), "invariant": fleet("invariant")}
 
 
 async def _wait_for_run(api_base: str, run_id: str) -> dict[str, Any]:

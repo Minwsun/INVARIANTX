@@ -673,10 +673,12 @@ def _normalize_intent_candidate(
     constraint_operators = {
         "less_than_or_equal": "less_than_or_equal",
         "less_than_or_equals": "less_than_or_equal",
+        "less_than_or_equal_to": "less_than_or_equal",
         "at_most": "less_than_or_equal",
         "<=": "less_than_or_equal",
         "lte": "less_than_or_equal",
         "preserve_current": "less_than_or_equal",
+        "preserve_baseline": "less_than_or_equal",
         "greater_than_or_equal": "greater_than_or_equal",
         "greater_than_or_equals": "greater_than_or_equal",
         "at_least": "greater_than_or_equal",

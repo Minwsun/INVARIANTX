@@ -325,6 +325,38 @@ def test_live_paired_endpoint_uses_same_goal_models_and_dataset(monkeypatch) -> 
     assert invariant["llm_call_count"] == 3
 
 
+def test_live_single_fleet_endpoint_requires_key_and_valid_mode(monkeypatch) -> None:
+    async def run():
+        monkeypatch.setenv("INVARIANT_DEMO_KEY", "demo-secret")
+        app = create_app(RunService(agent_nodes=fake_agent_nodes()))
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            denied = await client.post(
+                "/runs/live/ungated",
+                json={"goal": "Reduce cost without delaying medical orders"},
+            )
+            unknown = await client.post(
+                "/runs/live/unknown",
+                headers={"X-INVARIANT-DEMO-KEY": "demo-secret"},
+                json={"goal": "Reduce cost without delaying medical orders"},
+            )
+            created = await client.post(
+                "/runs/live/ungated",
+                headers={"X-INVARIANT-DEMO-KEY": "demo-secret"},
+                json={"goal": "Reduce cost without delaying medical orders"},
+            )
+            return denied, unknown, created
+
+    denied, unknown, created = asyncio.run(run())
+
+    assert denied.status_code == 403
+    assert unknown.status_code == 404
+    assert created.status_code == 202
+    assert created.json()["fleet_mode"] == "ungated"
+
+
 def test_standard_run_never_emits_demo_drift_event() -> None:
     async def run():
         service = RunService(agent_nodes=fake_agent_nodes())

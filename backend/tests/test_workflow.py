@@ -216,6 +216,28 @@ def test_compiler_canonicalizes_live_model_aliases() -> None:
     assert grounded["hard_constraints"][0]["operator"] == "less_than_or_equal"
 
 
+def test_compiler_canonicalizes_additional_live_constraint_aliases() -> None:
+    for operator in ("less_than_or_equal_to", "preserve_baseline"):
+        grounded = _ground_constraint_references(
+            {
+                "objectives": [],
+                "hard_constraints": [
+                    {
+                        "id": "hc_1",
+                        "subject": "medical_orders",
+                        "metric": "delivery_delay",
+                        "operator": operator,
+                        "value_ref": "baseline.delivery_delay",
+                        "source_span": "preserve current SLA",
+                    }
+                ],
+            },
+            {"baseline.delivery_delay": 10},
+        )
+
+        assert grounded["hard_constraints"][0]["operator"] == "less_than_or_equal"
+
+
 def test_compiler_canonicalizes_constraint_operator_aliases() -> None:
     for operator, expected in (
         ("equals", "equal"),
