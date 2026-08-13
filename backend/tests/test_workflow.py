@@ -109,7 +109,7 @@ def test_compiler_normalizes_at_or_below_and_grounds_reference() -> None:
 
 
 def test_compiler_normalizes_live_constraint_operator_variants() -> None:
-    for operator in ("lessthan_or_equal", "preserve"):
+    for operator in ("lessthan_or_equal", "preserve", "maintain"):
         grounded = _ground_constraint_references(
             {
                 "hard_constraints": [

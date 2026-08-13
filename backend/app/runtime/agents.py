@@ -228,6 +228,7 @@ def build_agent_nodes(model_config: ModelConfig | None = None) -> AgentNodes:
         ),
         worker=RetryingLlmAgent(
             name="worker_agent",
+            max_attempts=3,
             model=Gemini(
                 model=models.worker,
                 retry_options=types.HttpRetryOptions(attempts=1),
