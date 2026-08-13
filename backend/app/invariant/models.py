@@ -255,6 +255,7 @@ class ExecutionReceipt(FrozenModel):
     capacity_violations: tuple[str, ...] = ()
     sla_violations: tuple[str, ...] = ()
     assignment_summary: dict[str, int] = Field(default_factory=dict)
+    assignments_digest: str | None = Field(default=None, min_length=64, max_length=64)
     occurred_outcomes: tuple[str, ...] = ()
     protected_entities: dict[str, bool] = Field(default_factory=dict)
     evidence_source: EvidenceSource

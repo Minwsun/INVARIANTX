@@ -93,6 +93,8 @@ The evaluation suite covers valid delegation, omission, contradiction, weakening
 
 Benchmark Layer A methodology: `benchmarks/README.md`. Live-model fleet comparison is reserved for Layer B.
 
+The feature-complete and truthful-claim gates are defined in `docs/COMPLETION-GOAL.md`.
+
 ## API
 
 - `POST /runs` starts a run.

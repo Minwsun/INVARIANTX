@@ -86,6 +86,27 @@ def test_compiler_replaces_empty_constraint_reference() -> None:
     assert "value" not in grounded["hard_constraints"][0]
 
 
+def test_compiler_normalizes_at_or_below_and_grounds_reference() -> None:
+    grounded = _ground_constraint_references(
+        {
+            "hard_constraints": [
+                {
+                    "id": "hc_1",
+                    "subject": "medical_orders",
+                    "metric": "delivery_delay",
+                    "operator": "at_or_below",
+                    "source_span": "at or below its current baseline",
+                }
+            ]
+        },
+        {"baseline.delivery_delay": 10},
+    )
+
+    constraint = grounded["hard_constraints"][0]
+    assert constraint["operator"] == "less_than_or_equal"
+    assert constraint["value_ref"] == "baseline.delivery_delay"
+
+
 def test_compiler_normalizes_no_delay_to_baseline_constraint() -> None:
     grounded = _ground_constraint_references(
         {

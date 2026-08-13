@@ -693,6 +693,7 @@ def _normalize_intent_candidate(
         "less_than_or_equals": "less_than_or_equal",
         "less_than_or_equal_to": "less_than_or_equal",
         "at_most": "less_than_or_equal",
+        "at_or_below": "less_than_or_equal",
         "<=": "less_than_or_equal",
         "lte": "less_than_or_equal",
         "preserve_current": "less_than_or_equal",

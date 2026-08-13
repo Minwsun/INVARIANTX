@@ -87,16 +87,40 @@ def _failed_run(error: str) -> dict[str, Any]:
 
 
 def _write_report(output: Path, results: list[dict[str, Any]]) -> dict[str, Any]:
+    summary = _summarize(results)
     report = {
         "schema_version": "1.0",
         "methodology": "paired_live_model_execution",
         "sample_size": len(results),
         "results": results,
-        "summary": _summarize(results),
+        "summary": summary,
+        "scale_gate": _scale_gate(results, summary),
     }
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     return report
+
+
+def _scale_gate(
+    results: list[dict[str, Any]],
+    summary: dict[str, Any],
+) -> dict[str, Any]:
+    zero_technical_failures = all(
+        summary[fleet]["technical_model_failures"] == 0
+        for fleet in ("baseline", "invariant")
+    )
+    zero_incomparable = summary["comparable_pairs"] == len(results)
+    identical_contract_per_pair = bool(results) and all(
+        pair.get("same_contract", False) and bool(pair.get("contract_hash"))
+        for pair in results
+    )
+    return {
+        "passed": zero_technical_failures and zero_incomparable and identical_contract_per_pair,
+        "zero_technical_failures": zero_technical_failures,
+        "zero_incomparable": zero_incomparable,
+        "identical_contract_per_pair": identical_contract_per_pair,
+        "metrics_semantics": "receipt-based",
+    }
 
 
 def _summarize(results: list[dict[str, Any]]) -> dict[str, Any]:

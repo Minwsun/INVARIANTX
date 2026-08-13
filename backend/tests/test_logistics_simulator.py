@@ -16,6 +16,7 @@ def test_logistics_dataset_and_safe_plan_are_deterministic() -> None:
     assert first["actual_metrics"]["delivery_delay"] == 9
     assert first["sla_violations"] == ()
     assert first["protected_entities"]["medical_orders"] is True
+    assert len(first["assignments_digest"]) == 64
 
 
 def test_cheapest_plan_reduces_cost_but_violates_medical_intent() -> None:

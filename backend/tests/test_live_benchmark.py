@@ -1,5 +1,5 @@
 from app.evaluation.live_corpus import LIVE_SCENARIOS
-from app.evaluation.live_benchmark import _failed_run, _summarize
+from app.evaluation.live_benchmark import _failed_run, _scale_gate, _summarize
 
 
 def test_live_corpus_covers_five_natural_drift_categories() -> None:
@@ -106,3 +106,19 @@ def test_failed_pair_record_is_counted_as_technical_failure() -> None:
     assert summary["comparable_pairs"] == 0
     assert summary["baseline"]["technical_model_failures"] == 1
     assert summary["invariant"]["technical_model_failures"] == 1
+
+
+def test_scale_gate_requires_clean_comparable_shared_contract_pairs() -> None:
+    pair = {
+        "same_goal": True,
+        "same_models": True,
+        "same_dataset": True,
+        "same_contract": True,
+        "contract_hash": "a" * 64,
+        "baseline": {"status": "COMPLETED", "result": {}, "llm_call_count": 3},
+        "invariant": {"status": "COMPLETED", "result": {}, "llm_call_count": 2},
+    }
+    summary = _summarize([pair])
+
+    assert _scale_gate([pair], summary)["passed"] is True
+    assert _scale_gate([{**pair, "same_contract": False}], summary)["passed"] is False

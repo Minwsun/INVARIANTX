@@ -34,8 +34,9 @@ type Receipt = {
   before_metrics?: Record<string, number>;
   actual_metrics?: Record<string, number>;
   counts?: Record<string, number>;
-  sla_violations?: number;
-  capacity_violations?: number;
+  sla_violations?: string[];
+  capacity_violations?: string[];
+  assignments_digest?: string;
   evidence_source?: Json;
 };
 type FleetResult = { final_verdict?: string; receipt?: Receipt; validation?: Validation; repair_count?: number };
@@ -177,6 +178,7 @@ export default function Home() {
         <div><p className="eyebrow">Intent integrity proof console</p><h1>What did INVARIANT prevent?</h1></div>
         <div className={`run-state run-state--${run?.status?.toLowerCase() ?? "idle"}`}>{run?.status ?? "READY"}</div>
       </header>
+      <p className="claim-note">Real live case study. Aggregate effectiveness requires a clean paired Layer B benchmark.</p>
 
       <form className="intent" onSubmit={startCompare}>
         <div><span>Human intent</span><input value={goal} onChange={(event) => setGoal(event.target.value)} /></div>

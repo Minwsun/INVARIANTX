@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from app.invariant.digest import canonical_digest
+
 
 @dataclass(frozen=True)
 class Order:
@@ -106,6 +108,7 @@ class LogisticsSimulator:
             "assignment_summary": {
                 route_id: count for route_id, count in sorted(route_counts.items())
             },
+            "assignments_digest": canonical_digest(assignments),
         }
 
     def _assign(self, order: Order, plan: str) -> dict[str, str]:
