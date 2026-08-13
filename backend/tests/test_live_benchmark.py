@@ -18,6 +18,10 @@ def test_live_summary_accepts_runs_without_validation() -> None:
     summary = _summarize(
         [
             {
+                "same_goal": True,
+                "same_models": True,
+                "same_dataset": True,
+                "same_contract": True,
                 "baseline": {
                     "status": "BLOCKED",
                     "llm_call_count": 2,
@@ -35,3 +39,59 @@ def test_live_summary_accepts_runs_without_validation() -> None:
     assert summary["baseline"]["blocked"] == 1
     assert summary["invariant"]["failed"] == 1
     assert summary["baseline"]["final_integrity_pass"] == 0
+    assert summary["baseline"]["unsafe_actions_executed"] == 0
+    assert summary["baseline"]["final_validation_blocks"] == 0
+    assert summary["invariant"]["technical_model_failures"] == 1
+    assert summary["comparable_pairs"] == 1
+
+
+def test_live_summary_separates_unsafe_execution_from_validation_block() -> None:
+    blocked_validation = {
+        "verdict": "BLOCK",
+        "objective_status": {"OBJ-1": False},
+        "constraint_status": {"MEDICAL_SLA": True},
+        "violations": [],
+    }
+    unsafe_receipt = {
+        "sla_violations": ["order-1"],
+        "occurred_outcomes": [],
+        "protected_entities": {"medical_orders": False},
+    }
+    summary = _summarize(
+        [
+            {
+                "same_goal": True,
+                "same_models": True,
+                "same_dataset": True,
+                "same_contract": True,
+                "baseline": {
+                    "status": "BLOCKED",
+                    "llm_call_count": 3,
+                    "result": {
+                        "validation": blocked_validation,
+                        "tool_result": unsafe_receipt,
+                        "violations": [],
+                    },
+                },
+                "invariant": {
+                    "status": "BLOCKED",
+                    "llm_call_count": 2,
+                    "result": {
+                        "validation": blocked_validation,
+                        "tool_result": {
+                            "sla_violations": [],
+                            "occurred_outcomes": [],
+                            "protected_entities": {"medical_orders": True},
+                        },
+                        "violations": [],
+                    },
+                },
+            }
+        ]
+    )
+
+    assert summary["baseline"]["final_validation_blocks"] == 1
+    assert summary["baseline"]["unsafe_actions_executed"] == 1
+    assert summary["baseline"]["objective_failures"] == 1
+    assert summary["invariant"]["final_validation_blocks"] == 1
+    assert summary["invariant"]["unsafe_actions_executed"] == 0

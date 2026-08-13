@@ -19,6 +19,8 @@ from app.invariant.models import (
     GateStatus,
     IntentContract,
 )
+from app.invariant.digest import canonical_digest
+from app.runtime.models import ModelConfig
 from app.runtime.agents import AgentNodes, ModelExecutionBlocked
 from app.runtime.events import EventJournal, EventType, RunStatus
 from app.runtime.workflow import (
@@ -72,6 +74,7 @@ class RunService:
         *,
         scenario: str = "standard",
         fleet_mode: str = "invariant",
+        initial_contract: IntentContract | None = None,
     ) -> RunSnapshot:
         if self.agent_nodes is None and not os.getenv("GEMINI_API_KEY"):
             raise ValueError("GEMINI_API_KEY is required for real agent execution")
@@ -89,13 +92,59 @@ class RunService:
             goal=goal,
             scenario=scenario,
             fleet_mode=fleet_mode,
+            contract_id=initial_contract.id if initial_contract else None,
+            contract_version=initial_contract.version if initial_contract else None,
         )
-        record = _RunRecord(snapshot=snapshot, request=request)
+        record = _RunRecord(snapshot=snapshot, request=request, contract=initial_contract)
         self._runs[run_id] = record
         await self._save_snapshot(record)
         await self.journal.append(run_id, EventType.RUN_CREATED, "api")
         record.task = asyncio.create_task(self._execute(record))
         return snapshot
+
+    async def create_paired(self, goal: str) -> dict[str, Any]:
+        baseline = await self.create(goal, fleet_mode="ungated")
+        contract = await self.wait_for_contract(baseline.run_id)
+        baseline = await self.get(baseline.run_id)
+        invariant = await self.create(
+            goal,
+            fleet_mode="invariant",
+            initial_contract=contract,
+        )
+        models = ModelConfig.from_env()
+        dataset_version = self.adapter.baseline_receipt().dataset_version
+        contract_payload = contract.model_dump(mode="json")
+        return {
+            "same_goal": baseline.goal == invariant.goal == contract.original_request,
+            "same_models": bool(models.intent_compiler and models.planner and models.worker),
+            "same_dataset": dataset_version == self.adapter.baseline_receipt().dataset_version,
+            "same_contract": (
+                baseline.contract_id == invariant.contract_id == contract.id
+                and baseline.contract_version == invariant.contract_version == contract.version
+            ),
+            "contract_id": contract.id,
+            "contract_version": contract.version,
+            "contract_hash": canonical_digest(contract_payload),
+            "models": models.model_dump(mode="json"),
+            "dataset_version": dataset_version,
+            "baseline": baseline,
+            "invariant": invariant,
+        }
+
+    async def wait_for_contract(
+        self,
+        run_id: str,
+        *,
+        timeout_seconds: float = 90,
+    ) -> IntentContract:
+        async with asyncio.timeout(timeout_seconds):
+            while True:
+                record = self._record(run_id)
+                if record.contract is not None:
+                    return record.contract
+                if record.snapshot.status in {RunStatus.BLOCKED, RunStatus.FAILED, RunStatus.CANCELLED}:
+                    raise ValueError(record.snapshot.error or "intent compilation failed")
+                await asyncio.sleep(0.05)
 
     async def get(self, run_id: str) -> RunSnapshot:
         record = self._runs.get(run_id)
@@ -173,6 +222,7 @@ class RunService:
             contract_sink=persist_contract,
             agent_nodes=self.agent_nodes,
             fleet_mode=record.request.fleet_mode,
+            initial_contract=record.contract,
         )
         runner = InMemoryRunner(node=workflow, app_name="invariant")
         try:

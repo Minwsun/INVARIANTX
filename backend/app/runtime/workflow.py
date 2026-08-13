@@ -91,6 +91,7 @@ def build_invariant_workflow(
     contract_sink: Callable[[IntentContract], Awaitable[None]] | None = None,
     agent_nodes: AgentNodes | None = None,
     fleet_mode: Literal["invariant", "ungated"] = "invariant",
+    initial_contract: IntentContract | None = None,
 ) -> Workflow:
     if not 1 <= max_llm_calls <= 5:
         raise ValueError("max_llm_calls must be between 1 and 5")
@@ -125,6 +126,13 @@ def build_invariant_workflow(
                 "references": list(node_input.request.state),
             },
         }
+
+    def attach_initial_contract(ctx: Context, node_input: WorkflowPacket) -> WorkflowPacket:
+        if initial_contract is None:
+            raise RuntimeError("initial contract is not configured")
+        ctx.state["contract_id"] = initial_contract.id
+        ctx.state["contract_version"] = initial_contract.version
+        return node_input.model_copy(update={"contract": initial_contract})
 
     async def register_contract(
         ctx: Context,
@@ -556,6 +564,17 @@ def build_invariant_workflow(
             }
         )
 
+    compiler_steps = (
+        attach_initial_contract,
+        remember_packet,
+    ) if initial_contract is not None else (
+        reserve_compiler_call,
+        prepare_intent,
+        nodes.intent_compiler,
+        register_contract,
+        remember_packet,
+    )
+
     if fleet_mode == "ungated":
         return Workflow(
             name="ungated_workflow",
@@ -564,11 +583,7 @@ def build_invariant_workflow(
                     START,
                     parse_request,
                     remember_request,
-                    reserve_compiler_call,
-                    prepare_intent,
-                    nodes.intent_compiler,
-                    register_contract,
-                    remember_packet,
+                    *compiler_steps,
                     reserve_planner_call,
                     prepare_planner,
                     nodes.planner,
@@ -591,11 +606,7 @@ def build_invariant_workflow(
                 START,
                 parse_request,
                 remember_request,
-                reserve_compiler_call,
-                prepare_intent,
-                nodes.intent_compiler,
-                register_contract,
-                remember_packet,
+                *compiler_steps,
                 reserve_planner_call,
                 prepare_planner,
                 nodes.planner,

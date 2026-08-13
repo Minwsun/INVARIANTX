@@ -19,9 +19,15 @@ class RunCreateRequest(BaseModel):
 
 class PairedRunResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    same_goal: bool = True
-    same_models: bool = True
-    same_dataset: bool = True
+    same_goal: bool
+    same_models: bool
+    same_dataset: bool
+    same_contract: bool
+    contract_id: str
+    contract_version: int
+    contract_hash: str
+    models: dict[str, str]
+    dataset_version: str | None
     baseline: object
     invariant: object
 
@@ -113,9 +119,7 @@ def create_runs_router(service: RunService) -> APIRouter:
         if not demo_key_matches(demo_key):
             raise HTTPException(status_code=403, detail="invalid demo credentials")
         try:
-            baseline = await service.create(body.goal, fleet_mode="ungated")
-            invariant = await service.create(body.goal, fleet_mode="invariant")
-            return PairedRunResponse(baseline=baseline, invariant=invariant)
+            return PairedRunResponse.model_validate(await service.create_paired(body.goal))
         except ValueError as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
 

@@ -318,11 +318,20 @@ def test_live_paired_endpoint_uses_same_goal_models_and_dataset(monkeypatch) -> 
     assert payload["same_goal"] is True
     assert payload["same_models"] is True
     assert payload["same_dataset"] is True
+    assert payload["same_contract"] is True
+    assert len(payload["contract_hash"]) == 64
     assert baseline["fleet_mode"] == "ungated"
     assert invariant["fleet_mode"] == "invariant"
     assert baseline["goal"] == invariant["goal"]
+    assert baseline["contract_id"] == invariant["contract_id"] == payload["contract_id"]
+    assert baseline["contract_version"] == invariant["contract_version"] == 1
     assert baseline["llm_call_count"] == 3
-    assert invariant["llm_call_count"] == 3
+    assert invariant["llm_call_count"] == 2
+    assert baseline["result"]["model_calls"][0]["role"] == "intent_compiler"
+    assert all(
+        call["role"] != "intent_compiler"
+        for call in invariant["result"]["model_calls"]
+    )
 
 
 def test_live_single_fleet_endpoint_requires_key_and_valid_mode(monkeypatch) -> None:
