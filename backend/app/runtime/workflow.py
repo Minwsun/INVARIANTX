@@ -80,6 +80,7 @@ def build_invariant_workflow(
     domain_adapter_name: str = "runtime",
     intent_normalizer: Callable[[Any, dict[str, float]], Any] | None = None,
     receipt_builder: Callable[[Any, dict[str, float]], ExecutionReceipt] | None = None,
+    action_projector: Callable[[ActionProposal], ActionProposal] | None = None,
     max_repairs: int = 2,
     max_llm_calls: int = 5,
     semantic_verifier: SemanticVerifier | None = None,
@@ -349,6 +350,8 @@ def build_invariant_workflow(
     def merge_worker(ctx: Context, node_input: Any) -> WorkflowPacket:
         packet = WorkflowPacket.model_validate(ctx.state["workflow_packet"])
         action = ActionProposal.model_validate(node_input)
+        if action_projector is not None:
+            action = action_projector(action)
         return _attach_agent_telemetry(
             ctx,
             packet.model_copy(update={"action": action}),

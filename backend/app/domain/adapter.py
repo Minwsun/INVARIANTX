@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any
 
-from app.invariant.models import ExecutionReceipt, ToolRisk
+from app.invariant.models import ActionProposal, ExecutionReceipt, ToolRisk
 
 
 class DomainAdapter(ABC):
@@ -25,6 +25,9 @@ class DomainAdapter(ABC):
 
     def baseline_receipt(self) -> ExecutionReceipt | None:
         return None
+
+    def project_action(self, proposal: ActionProposal) -> ActionProposal:
+        return proposal
 
     @abstractmethod
     def build_receipt(

@@ -163,6 +163,7 @@ class RunService:
             domain_adapter_name=self.adapter.name,
             intent_normalizer=self.adapter.normalize_intent,
             receipt_builder=self.adapter.build_receipt,
+            action_projector=self.adapter.project_action,
             action_decision_sink=persist_action_decision,
             contract_sink=persist_contract,
             agent_nodes=self.agent_nodes,

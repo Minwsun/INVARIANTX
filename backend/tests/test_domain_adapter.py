@@ -1,7 +1,9 @@
 import pytest
 
 from app.domain.logistics_tools import LogisticsAdapter
-from app.invariant.models import EvidenceType
+from app.domain.logistics import medical_logistics_contract
+from app.invariant.action_gate import ActionGate
+from app.invariant.models import ActionProposal, EvidenceType, ToolRisk
 
 
 def test_logistics_adapter_builds_canonical_simulator_receipt() -> None:
@@ -28,3 +30,43 @@ def test_logistics_adapter_selects_slow_tool_only_for_timeout_demo() -> None:
 
     assert standard_tool.__name__ == "apply_plan"
     assert timeout_tool.__name__ == "apply_plan_slow"
+
+
+def test_logistics_adapter_projects_metrics_independently_of_worker_claims() -> None:
+    adapter = LogisticsAdapter()
+    proposal = ActionProposal(
+        action_id="A-1",
+        contract_id="I-1",
+        contract_version=1,
+        tool_name="apply_plan",
+        risk=ToolRisk.SIDE_EFFECT,
+        arguments={"plan_id": "cheapest"},
+        proposed_metrics={"delivery_delay": 1},
+    )
+
+    projected = adapter.project_action(proposal)
+
+    assert projected.proposed_metrics["delivery_delay"] == 12
+    assert projected.proposed_metrics["logistics_cost"] == 800
+
+
+def test_action_gate_uses_simulator_projection_to_block_unsafe_plan() -> None:
+    adapter = LogisticsAdapter()
+    proposal = ActionProposal(
+        action_id="A-1",
+        contract_id="I-001",
+        contract_version=1,
+        tool_name="apply_plan",
+        risk=ToolRisk.SIDE_EFFECT,
+        arguments={"plan_id": "cheapest"},
+        proposed_metrics={"delivery_delay": 1},
+    )
+
+    result = ActionGate().check(
+        medical_logistics_contract(),
+        adapter.project_action(proposal),
+        {"baseline.medical_delay": 10},
+    )
+
+    assert result.verdict.status == "BLOCK"
+    assert result.approval is None

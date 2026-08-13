@@ -3,7 +3,13 @@ import time
 
 from app.domain.adapter import DomainAdapter
 from app.domain.logistics_simulator import LogisticsSimulator
-from app.invariant.models import EvidenceSource, EvidenceType, ExecutionReceipt, ToolRisk
+from app.invariant.models import (
+    ActionProposal,
+    EvidenceSource,
+    EvidenceType,
+    ExecutionReceipt,
+    ToolRisk,
+)
 
 
 class LogisticsTools:
@@ -66,4 +72,11 @@ class LogisticsAdapter(DomainAdapter):
         return self.build_receipt(
             self.runtime_tools.simulator.execute("cheapest"),
             self.baseline_state(),
+        )
+
+    def project_action(self, proposal: ActionProposal) -> ActionProposal:
+        plan_id = str(proposal.arguments.get("plan_id", ""))
+        projection = self.runtime_tools.simulator.execute(plan_id)
+        return proposal.model_copy(
+            update={"proposed_metrics": projection["actual_metrics"]}
         )
