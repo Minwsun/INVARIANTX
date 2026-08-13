@@ -21,6 +21,7 @@ def test_production_nodes_are_real_adk_llm_agents() -> None:
     assert nodes.worker.model.model == WORKER_MODEL
     assert nodes.intent_compiler.model.retry_options.attempts == 1
     assert nodes.planner.mode == "single_turn"
+    assert nodes.planner.max_attempts == 3
     assert nodes.worker.tools == []
     assert nodes.intent_compiler.generate_content_config.max_output_tokens == 800
     assert nodes.planner.generate_content_config.max_output_tokens == 400

@@ -183,6 +183,7 @@ def build_agent_nodes(model_config: ModelConfig | None = None) -> AgentNodes:
         ),
         planner=RetryingLlmAgent(
             name="planner_agent",
+            max_attempts=3,
             model=Gemini(
                 model=models.planner,
                 retry_options=types.HttpRetryOptions(attempts=1),
