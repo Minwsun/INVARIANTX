@@ -1,9 +1,9 @@
 {
   "schema_version": "1.0",
-  "commit_sha": "a417245a3f0dba5f407494fe366c7014671df5d3",
+  "commit_sha": "59b699cf5cc7721d6e4caebb036cee513dfd8e98",
   "backend_url": "https://invariantx-api.onrender.com",
-  "run_id": "run_aca5a5cec75f491facb680f60bb7c50b",
-  "contract_id": "intent_run_aca5a5cec75f491facb680f60bb7c50b",
+  "run_id": "run_270c4df87e2d48a09f1b6b51e1d78a4c",
+  "contract_id": "intent_run_270c4df87e2d48a09f1b6b51e1d78a4c",
   "contract_version": 1,
   "scenario": "deliberate_constraint_omission",
   "models": ["gemini-3.5-flash-lite"],

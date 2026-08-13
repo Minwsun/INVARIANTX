@@ -311,7 +311,7 @@ export default function Home() {
           <PanelTitle kicker="Source of truth" title="Intent Contract" detail={contract ? `${contract.id} · v${contract.version}` : "Waiting"} />
           {contract ? (
             <div className="contract-groups">
-              <ContractGroup title="Objectives" items={contract.objectives.map((item) => `${item.metric} · target ${item.target * 100}%`)} />
+              <ContractGroup title="Objectives" items={contract.objectives.map((item) => `${item.metric} · target ${item.unit === "percent" ? item.target : item.target * 100}%`)} />
               <ContractGroup title="Hard invariants" items={contract.hard_constraints.map((item) => `${item.id} · ${item.metric}`)} />
               <ContractGroup title="Protected" items={contract.protected_entities} />
               <ContractGroup title="Forbidden" items={contract.forbidden_outcomes} danger />
