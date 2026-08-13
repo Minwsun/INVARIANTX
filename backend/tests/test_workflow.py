@@ -249,6 +249,31 @@ def test_compiler_recovers_live_objective_and_sla_reference() -> None:
     assert grounded["hard_constraints"][0]["value_ref"] == "baseline.delivery_delay"
 
 
+def test_compiler_grounds_medical_constraint_without_stable_metric_name() -> None:
+    grounded = _ground_constraint_references(
+        {
+            "hard_constraints": [
+                {
+                    "id": "hc_1",
+                    "subject": "medical_orders",
+                    "metric": "service_level",
+                    "operator": "preserve_baseline",
+                    "source_span": "medical orders must remain within the current baseline",
+                }
+            ]
+        },
+        {
+            "baseline.medical_delay": 10,
+            "baseline.delivery_delay": 10,
+            "baseline.logistics_cost": 1000,
+        },
+    )
+
+    constraint = grounded["hard_constraints"][0]
+    assert constraint["metric"] == "delivery_delay"
+    assert constraint["value_ref"] == "baseline.delivery_delay"
+
+
 def test_compiler_canonicalizes_additional_live_constraint_aliases() -> None:
     for operator in ("less_than_or_equal_to", "preserve_baseline"):
         grounded = _ground_constraint_references(

@@ -712,9 +712,19 @@ def _normalize_intent_candidate(
             key for key in state if key.rsplit(".", 1)[-1] == metric
         ]
         source_span = str(item.get("source_span", "")).lower()
-        if not baseline_matches and any(
-            term in source_span for term in ("delay", "delivery", "sla")
+        subject = str(item.get("subject", "")).casefold()
+        if not baseline_matches and (
+            any(term in source_span for term in ("delay", "delivery", "sla", "baseline"))
+            or subject == "medical_orders"
         ) and "baseline.delivery_delay" in state:
+            item["metric"] = "delivery_delay"
+            baseline_matches = ["baseline.delivery_delay"]
+        if (
+            item.get("value") is None
+            and not item.get("value_ref")
+            and subject == "medical_orders"
+            and "baseline.delivery_delay" in state
+        ):
             item["metric"] = "delivery_delay"
             baseline_matches = ["baseline.delivery_delay"]
         if (
